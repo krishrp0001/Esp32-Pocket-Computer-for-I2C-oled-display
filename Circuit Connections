@@ -1,0 +1,66 @@
+OLED Display (SSD1306)	SDA = GPIO 21, SCL = GPIO 22	
+
+Joystick X-axis (VRx)	GPIO 34	Analog input
+
+Joystick Y-axis (VRy)	GPIO 35	Analog input
+
+Joystick Button (SW)	GPIO 32	Digital input 
+
+Back Button	GPIO 33	Digital input 
+
+Ultrasonic Sensor TRIG	GPIO 25	Digital output → TRIG pin
+
+Ultrasonic Sensor ECHO	GPIO 26	Digital input ← ECHO pin
+
+Buzzer	GPIO 27	Digital output
+
+Thermistor (10k NTC)	Divider to GPIO 36 (ADC1_CH0)	One leg → 3.3V; other leg → junction with 10k resistor and also to GPIO36
+
+
+3.3V
+    │  [one leg]
+    │
+ [10kΩ Thermistor]
+    │  [other leg]
+    ├───► GPIO36 
+    │
+ [10kΩ Resistor]
+    │
+   GND
+
+
+Fixed Resistor (10k)	Divider for Thermistor	One leg → GND, other leg → junction with Thermistor & GPIO36
+
+
+LDR (Light Sensor)	Divider to GPIO 39 (ADC1_CH3)	One leg → 3.3V; other leg → junction with 10k resistor and also to GPIO39
+
+3.3V
+    │  [one leg]
+    │
+ [  LDR  ]
+    │  [other leg]
+    ├───► GPIO36 
+    │
+ [10kΩ Resistor]
+    │
+   GND
+
+
+Fixed Resistor (10k)	Divider for LDR	One leg → GND, other leg → junction with LDR & GPIO39
+
+nRF24L01+ CE	GPIO 5	CE pin
+
+nRF24L01+ CSN	GPIO 4	CSN pin
+
+nRF24L01+ MOSI	GPIO 23	SPI MOSI
+
+nRF24L01+ MISO	GPIO 19	SPI MISO
+
+nRF24L01+ SCK	GPIO 18	SPI Clock
+
+nRF24L01+ VCC	3.3V	⚡ (Add 10µF capacitor between VCC & GND for stability)
+
+nRF24L01+ GND	GND	Ground
+
+
+
