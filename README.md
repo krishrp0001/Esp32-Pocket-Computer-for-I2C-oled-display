@@ -1,6 +1,6 @@
 # Esp32 Pocket Computer with OLED Display
 
-Pocket computer with 20+ apps calculator sci-calculator, paint, pong, space shooter, snake, command prompt, notes, distance, temperature, alarm etc.
+#  Pocket computer with 20+ apps calculator sci-calculator, paint, pong, space shooter, snake, command prompt, notes, distance, temperature, alarm, Jammer, wifi locater, etc.
 
 ---
 
