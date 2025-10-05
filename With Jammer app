@@ -96,8 +96,6 @@ String menuItems[] = {
 
     "Pong",
 
-    "Wifi Scanner",
-
     "Notes",
 
     "Dice Roller",
@@ -105,6 +103,8 @@ String menuItems[] = {
     "Paint",
 
     "Unit Convetor",
+    
+    "Percent Calculator",
 
     "BMI",
 
@@ -112,18 +112,26 @@ String menuItems[] = {
 
     "SpaceShooter",
     
+    "Flappy Bird",
+    
     "SciCalculator",
     
     "Elements",
     
+    
+    "Wifi Scanner",
+        
+    
     "WiFi Locator",
     
     "Jammer",
+    
+   
     "..."
 
 };
 
-int totalMenuItems = 21;        // Total number of items in the menu
+int totalMenuItems = 23;        // Total number of items in the menu
 
 int currentSelection = 0;       // Index of the currently selected menu item
 
@@ -152,7 +160,7 @@ void runSunlight();
 
 void runPong();
 
-void runWifiScanner();
+
 
 void runNotesApp();
 
@@ -160,7 +168,8 @@ void runDice();
 
 void runPaint();
 
-void runDistanceConverter();
+void runUnitConverter();
+void runPercentCalculator();
 
 void runBMI();
 
@@ -168,13 +177,19 @@ void runTimer();
 
 void runSpaceShooter();
 
+void runFlappyBird();
+
+
 void runSciCalculator();
 
 void runElements();
 
+void runWifiScanner();
+
 void runWiFiLocator();
 
 void runJammer();
+
 
 
 
@@ -418,19 +433,23 @@ void openApp(int appIndex) {
 
         case 7: runPong(); break;
 
-        case 8: runWifiScanner(); break;
+        
 
-        case 9: runNotesApp(); break;
+        case 8: runNotesApp(); break;
 
-        case 10: runDice(); break;
+        case 9: runDice(); break;
 
-        case 11: runPaint(); 
-
-        break;
-
-  case 12: runDistanceConverter();
+        case 10: runPaint(); 
 
         break;
+
+  case 11: runUnitConverter();
+
+        break;
+        
+  case 12: runPercentCalculator();
+  break;
+  
 
   case 13: runBMI();
 
@@ -440,22 +459,24 @@ void openApp(int appIndex) {
 
         break;
 
-        
-
-        case 15: runSpaceShooter();
+ case 15: runSpaceShooter();
 
         break;
         
- case 16: runSciCalculator();
+ case 16: runFlappyBird ();
+break;       
+        
+ case 17: runSciCalculator();
         break;
         
-case 17: runElements();
+case 18: runElements();
         break;
-case 18: runWiFiLocator();
+case 19: runWifiScanner(); break;        
+case 20: runWiFiLocator();
         break;
-case 19: runJammer();
+case 21: runJammer();
         break;
-        
+
 
         
 
@@ -1582,390 +1603,6 @@ void runPong() {
 // ---------------------------------------------------------------------------------------------------------------------------------------
 
 
-// Wifi Scanner Application
-
-String getSignalStrengthStatus(long rssi) {
-
-    if (rssi >= -40) {
-
-        return "Excellent";
-
-    } else if (rssi >= -60) {
-
-        return "Good";
-
-    } else if (rssi >= -70) {
-
-        return "Fair";
-
-    } else {
-
-        return "Poor";
-
-    }
-
-}
-
-
-void runWifiScanner() {
-
-    display.clearDisplay();
-
-    display.setTextSize(1);
-
-    display.setTextColor(SSD1306_WHITE);
-
-    display.setCursor(0, 0);
-
-    display.println("Scanning for WiFi...");
-
-    display.display();
-
-    
-
-    // Set ESP32 to Wi-Fi station mode to scan networks.
-
-    WiFi.mode(WIFI_STA);
-
-    WiFi.disconnect(); // Disconnect from any previous networks
-
-    int n = WiFi.scanNetworks(); // Perform Wi-Fi scan, returns number of networks found
-
-
-    if (n == 0) { // If no networks found
-
-        display.clearDisplay();
-
-        display.println("No networks found.");
-
-        display.display();
-
-        delay(2000);
-
-        WiFi.scanDelete(); // Delete scan results to free memory
-
-        WiFi.mode(WIFI_OFF); // Turn off Wi-Fi to save power
-
-        return; // Exit the app
-
-    }
-
-
-    int currentWifiSelection = 0;       // Index of the currently selected Wi-Fi network
-
-    unsigned long lastNavTime = 0;    // Timestamp for menu navigation debouncing
-
-    int firstVisibleItem = 0;          // Index of the first item shown on the screen
-
-    const int MAX_WIFI_ITEMS = 5;      // Maximum Wi-Fi networks to display at once
-
-
-    // Phase 1: Display the list of Wi-Fi networks and allow selection
-
-    while(!backPressed()) {
-
-        if (joyPressed()){
-
-          waitRelease(JOY_BTN);
-
-          break; // Exit loop to go to phase 2
-
-        }
-
-
-        // Handle vertical navigation with joystick
-
-        if (joyMovedUp(lastNavTime)) {
-
-            currentWifiSelection--;
-
-            if (currentWifiSelection < 0) currentWifiSelection = n - 1; // Wrap around
-
-        }
-
-        if (joyMovedDown(lastNavTime)) {
-
-            currentWifiSelection++;
-
-            if (currentWifiSelection >= n) currentWifiSelection = 0; // Wrap around
-
-        }
-
-
-        // Adjust visible window of networks if selection goes off screen
-
-        if (currentWifiSelection < firstVisibleItem) {
-
-            firstVisibleItem = currentWifiSelection;
-
-        }
-
-        if (currentWifiSelection >= firstVisibleItem + MAX_WIFI_ITEMS) {
-
-            firstVisibleItem = currentWifiSelection - (MAX_WIFI_ITEMS - 1);
-
-        }
-
-
-        display.clearDisplay();
-
-        display.setCursor(0, 0);
-
-        display.setTextSize(1);
-
-        display.println("Select a Network:");
-
-        display.drawFastHLine(0, 10, 127, SSD1306_WHITE); // Separator line
-
-
-        // Draw visible network items
-
-        for (int i = 0; i < MAX_WIFI_ITEMS && (firstVisibleItem + i) < n; i++) {
-
-            int itemIndex = firstVisibleItem + i;
-
-            String ssid = WiFi.SSID(itemIndex); // Get SSID
-
-            long rssi = WiFi.RSSI(itemIndex);   // Get RSSI
-
-
-            display.setCursor(0, 16 + i * 9); // Position for current item
-
-            // Highlight selected item
-
-            if (itemIndex == currentWifiSelection) {
-
-                display.setTextColor(SSD1306_BLACK, SSD1306_WHITE); // Black text on white background
-
-            } else {
-
-                display.setTextColor(SSD1306_WHITE); // White text on black background
-
-            }
-
-
-            // Truncate long SSIDs
-
-            if (ssid.length() > 15) {
-
-                ssid = ssid.substring(0, 12) + "...";
-
-            }
-
-            display.print(ssid);
-
-            display.print(" (");
-
-            display.print(rssi);
-
-            display.print(")");
-
-        }
-
-        display.display(); // Update display
-
-        delay(10);
-
-    }
-
-    
-
-    // If the user pressed the back button, exit the app now
-
-    if (backPressed()) {
-
-        WiFi.scanDelete();
-
-        WiFi.mode(WIFI_OFF);
-
-        waitRelease(BACK_BTN);
-
-        return;
-
-    }
-
-
-    String selectedSSID = WiFi.SSID(currentWifiSelection); // Store selected SSID
-
-    
-
-    // Delete scan results to free up memory
-
-    WiFi.scanDelete();
-
-
-    // Phase 2: Display the real-time RSSI graph for the selected network
-
-    const int HISTORY_SIZE = 64; // Number of historical RSSI points to store
-
-    int history[HISTORY_SIZE] = {0}; // Array to store historical RSSI values
-
-    int historyIndex = 0;             // Current index in the circular history buffer
-
-    unsigned long lastReadTime = 0; // Timestamp of last RSSI reading
-
-    const unsigned long READ_INTERVAL = 250; // Interval for reading RSSI
-
-
-    while (!backPressed()) { // Loop until back button is pressed
-
-        if (millis() - lastReadTime >= READ_INTERVAL) { // Time to take a new reading
-
-            lastReadTime = millis();
-
-            
-
-            // Perform a quick scan to get the latest RSSI for the selected network
-
-            int newScanCount = WiFi.scanNetworks(false, true); // non-blocking, hidden networks allowed
-
-            long currentRssi = -100; // Default to a low value if network is not found
-
-            for (int i = 0; i < newScanCount; i++) {
-
-                if (WiFi.SSID(i) == selectedSSID) {
-
-                    currentRssi = WiFi.RSSI(i);
-
-                    break;
-
-                }
-
-            }
-
-            
-
-            history[historyIndex] = currentRssi; // Store in history
-
-            historyIndex = (historyIndex + 1) % HISTORY_SIZE; // Advance index (circular)
-
-            WiFi.scanDelete(); // Delete scan results to free memory
-
-        }
-
-
-        // Calculate min, max, and average RSSI for dynamic graph scaling and display
-
-        int minRssi = -100; // Default min for mapping
-
-        int maxRssi = -30;  // Default max for mapping
-
-        long totalRssi = 0;
-
-        int validCount = 0;
-
-        for (int i = 0; i < HISTORY_SIZE; i++) {
-
-            if (history[i] != 0) { // Only consider valid readings
-
-                if (history[i] < minRssi) minRssi = history[i];
-
-                if (history[i] > maxRssi) maxRssi = history[i];
-
-                totalRssi += history[i];
-
-                validCount++;
-
-            }
-
-        }
-
-        long averageRssi = validCount > 0 ? totalRssi / validCount : 0;
-
-        // Ensure min and max are not identical to prevent map() issues
-
-        if (minRssi == maxRssi) {
-
-            minRssi -= 5;
-
-            maxRssi += 5;
-
-        }
-
-
-        display.clearDisplay();
-
-        display.setTextSize(1);
-
-        display.setTextColor(SSD1306_WHITE);
-
-        display.setCursor(0, 0);
-
-        display.print("Tracking: ");
-
-        // Display selected SSID (truncated if too long)
-
-        display.println(selectedSSID.substring(0, min(14, (int)selectedSSID.length())));
-
-
-        display.setCursor(0, 8);
-
-        display.print("Avg: ");
-
-        display.print(averageRssi);
-
-        display.println(" dBm"); // Display average RSSI
-
-
-        display.setCursor(0, 16);
-
-        // Get and display signal quality status
-
-        String signalStatus = getSignalStrengthStatus(history[(historyIndex + HISTORY_SIZE - 1) % HISTORY_SIZE]);
-
-        display.print("Status: ");
-
-        display.println(signalStatus);
-
-
-        // Draw the graph area border
-
-        display.drawRect(0, 30, 128, 34, SSD1306_WHITE);
-
-        // Display min/max RSSI labels on the Y-axis
-
-        display.setCursor(1, 32); display.print(maxRssi);
-
-        display.setCursor(1, 56); display.print(minRssi);
-
-
-        // Draw the filled area graph for RSSI history
-
-        // Iterates through history, mapping RSSI to Y position and drawing vertical lines
-
-        for (int i = 0; i < HISTORY_SIZE; i++) {
-
-          // Map RSSI value to screen Y coordinate (inverted for graph display)
-
-          // `63` is the bottom of the graph area, `31` is the top
-
-          int y1 = map(history[(historyIndex + i) % HISTORY_SIZE], minRssi, maxRssi, 63, 31);
-
-          if (history[(historyIndex + i) % HISTORY_SIZE] != 0) { // Only draw valid points
-
-            // Draw a vertical line from the bottom of the graph to the data point
-
-            display.drawLine(1 + i*2, 63, 1 + i*2, y1, SSD1306_WHITE);
-
-          }
-
-        }
-
-        
-
-        display.display(); // Update the display
-
-        delay(10); // Small delay for smooth updates
-
-    }
-
-    
-
-    WiFi.mode(WIFI_OFF); // Turn off Wi-Fi
-
-    waitRelease(BACK_BTN); // Wait for back button release
-
-}
 
 
 // =======================================================================================
@@ -2449,274 +2086,420 @@ void runPaint() {
 
 
 // =============== SMARTPHONE STYLE DISTANCE CONVERTER ===============
-
-void runDistanceConverter() {
-
-  const char* units[] = {"Meter", "Km", "Cm", "Inch", "Foot"};
-
-  int totalUnits = 5;
-
-
-  int fromIndex = 0;   // default: Meter
-
-  int toIndex = 4;     // default: Foot
-
-  String input = "0";
-
-  unsigned long gateTs = 0;
-
-
-  int cursorPos = 0; // 0=From, 1=To, 2=Value
-
-
-  while (!backPressed()) {
-
-    // Navigation
-
-    if (joyMovedUp(gateTs))    cursorPos = (cursorPos + 2) % 3;
-
-    if (joyMovedDown(gateTs))  cursorPos = (cursorPos + 1) % 3;
-
-
-    if (joyMovedLeft(gateTs)) {
-
-      if (cursorPos == 0) fromIndex = (fromIndex - 1 + totalUnits) % totalUnits;
-
-      if (cursorPos == 1) toIndex   = (toIndex - 1 + totalUnits) % totalUnits;
-
-    }
-
-    if (joyMovedRight(gateTs)) {
-
-      if (cursorPos == 0) fromIndex = (fromIndex + 1) % totalUnits;
-
-      if (cursorPos == 1) toIndex   = (toIndex + 1) % totalUnits;
-
-    }
-
-
-    // Enter number (open keypad)
-
-    if (joyPressed() && cursorPos == 2) {
-
-      waitRelease(JOY_BTN);
-
-      input = openKeypad(input);  // open keypad to edit number
-
-    }
-
-
-    // Convert value
-
-    float value = input.toFloat();
-
-    float meters = convertToMeters(value, fromIndex);
-
-    float result = convertFromMeters(meters, toIndex);
-
-
-    // Draw UI
-
-    display.clearDisplay();
-
-    display.setTextSize(1);
-
-    display.setCursor(0,0); display.println("Distance Conv");
-
-
-    // From unit
-
-    display.setCursor(0, 14);
-
-    if (cursorPos == 0) display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
-
-    else display.setTextColor(SSD1306_WHITE);
-
-    display.print("From: "); display.println(units[fromIndex]);
-
-
-    // To unit
-
-    display.setCursor(0, 28);
-
-    if (cursorPos == 1) display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
-
-    else display.setTextColor(SSD1306_WHITE);
-
-    display.print("To:   "); display.println(units[toIndex]);
-
-
-    // Value
-
-    display.setCursor(0, 42);
-
-    if (cursorPos == 2) display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
-
-    else display.setTextColor(SSD1306_WHITE);
-
-    display.print("Value: "); display.println(input);
-
-
-    // Result
-
-    display.setTextColor(SSD1306_WHITE);
-
-    display.setCursor(0, 56);
-
-    display.print("= "); display.print(result, 3); 
-
-    display.print(" "); display.println(units[toIndex]);
-
-
-    display.display();
-
-    delay(50);
-
-  }
-
-  waitRelease(BACK_BTN);
-
-}
-
-
-// --- Helper functions ---
-
-float convertToMeters(float val, int unit) {
-
-  if (unit==0) return val;            // Meter
-
-  if (unit==1) return val*1000.0;     // Km
-
-  if (unit==2) return val/100.0;      // Cm
-
-  if (unit==3) return val*0.0254;     // Inch
-
-  if (unit==4) return val*0.3048;     // Foot
-
-  return val;
-
-}
-
-float convertFromMeters(float val, int unit) {
-
-  if (unit==0) return val;
-
-  if (unit==1) return val/1000.0;
-
-  if (unit==2) return val*100.0;
-
-  if (unit==3) return val/0.0254;
-
-  if (unit==4) return val/0.3048;
-
-  return val;
-
-}
-
-
-// --- Virtual keypad function (reuse from calculator) ---
-
+// ===================================================================
+// ==================== NEW UNIT CONVERTER APP =======================
+// ===================================================================
+// This new version adds a menu to select the conversion type and
+// includes Temperature and Data converters.
+// ===================================================================
+
+
+// Forward declaration for the generic keypad function (assumed to exist elsewhere in your code) 
+// ===================================================================
+// ==================== NEW UNIT CONVERTER APP (FIXED) ===============
+// ===================================================================
+// This version includes the required openKeypad function to resolve
+// compilation errors. It features a main menu for Distance, 
+// Temperature, and Data conversions.
+// ===================================================================
+
+
+// --- Virtual keypad function (reused from your other apps) ---
+// This function provides the UI for number input.
 String openKeypad(String current) {
-
   const char keys[4][4] = {
-
     {'7','8','9',' '},
-
     {'4','5','6',' '},
-
     {'1','2','3',' '},
-
     {'0','.','C','<'}
-
   };
-
   int row=0, col=0;
-
   unsigned long ts=0;
-
   String input=current;
 
-
   while (!backPressed()) {
-
     if (joyMovedLeft(ts))  col = (col + 3) % 4;
-
     if (joyMovedRight(ts)) col = (col + 1) % 4;
-
     if (joyMovedUp(ts))    row = (row + 3) % 4;
-
     if (joyMovedDown(ts))  row = (row + 1) % 4;
 
-
     if (joyPressed()) {
-
       waitRelease(JOY_BTN);
-
       char key = keys[row][col];
-
       if (key >= '0' && key <= '9') {
-
         if (input=="0") input=String(key);
-
         else input+=key;
-
       }
-
       else if (key=='.' && input.indexOf('.')==-1) input+=".";
-
       else if (key=='<') {
-
         if (input.length()>0) input.remove(input.length()-1);
-
         if (input=="") input="0";
-
       }
-
       else if (key=='C') input="0";
-
     }
-
 
     // Draw keypad
-
     display.clearDisplay();
-
     display.setCursor(0,0); display.println("Enter Value");
-
     display.setCursor(0,12); display.println(input);
 
-
     for (int r=0;r<4;r++){
-
       for(int c=0;c<4;c++){
-
         if(keys[r][c]==' ') continue;
-
         int x=96+c*8, y=24+r*10;
-
         bool sel=(r==row && c==col);
-
         if(sel){ display.fillRect(x-2,y-1,12,10,SSD1306_WHITE); display.setTextColor(SSD1306_BLACK);}
-
         else display.setTextColor(SSD1306_WHITE);
-
         display.setCursor(x,y); display.print(keys[r][c]);
-
       }
+    }
+    display.display();
+    delay(50);
+  }
+  waitRelease(BACK_BTN);
+  return input;
+}
 
+
+// --- Conversion Logic for DISTANCE ---
+// Base unit is Meter.
+float convertDistToBase(float val, int unit) {
+  if (unit==0) return val;            // Meter
+  if (unit==1) return val*1000.0;     // Km
+  if (unit==2) return val/100.0;      // Cm
+  if (unit==3) return val*0.0254;     // Inch
+  if (unit==4) return val*0.3048;     // Foot
+  return val;
+}
+
+float convertDistFromBase(float val, int unit) {
+  if (unit==0) return val;            // Meter
+  if (unit==1) return val/1000.0;     // Km
+  if (unit==2) return val*100.0;      // Cm
+  if (unit==3) return val/0.0254;     // Inch
+  if (unit==4) return val/0.3048;     // Foot
+  return val;
+}
+
+
+// --- Conversion Logic for TEMPERATURE ---
+// The base unit for conversion is Celsius.
+float convertTempToBase(float val, int unit) {
+  if (unit==0) return val;                     // From Celsius
+  if (unit==1) return (val - 32.0) * 5.0 / 9.0; // From Fahrenheit
+  if (unit==2) return val - 273.15;             // From Kelvin
+  return val;
+}
+
+float convertTempFromBase(float val, int unit) {
+  if (unit==0) return val;                      // To Celsius
+  if (unit==1) return (val * 9.0 / 5.0) + 32.0;  // To Fahrenheit
+  if (unit==2) return val + 273.15;              // To Kelvin
+  return val;
+}
+
+
+// --- Conversion Logic for DATA ---
+// The base unit for conversion is Bytes. Uses 1024 factor.
+float convertDataBase(float val, int unit) {
+  if (unit==0) return val; // Bytes
+  if (unit==1) return val * 1024.0; // KB
+  if (unit==2) return val * 1024.0 * 1024.0; // MB
+  if (unit==3) return val * 1024.0 * 1024.0 * 1024.0; // GB
+  if (unit==4) return val * 1024.0 * 1024.0 * 1024.0 * 1024.0; // TB
+  return val;
+}
+
+float convertDataFromBase(float val, int unit) {
+  if (unit==0) return val; // Bytes
+  if (unit==1) return val / 1024.0; // KB
+  if (unit==2) return val / (1024.0 * 1024.0); // MB
+  if (unit==3) return val / (1024.0 * 1024.0 * 1024.0); // GB
+  if (unit==4) return val / (1024.0 * 1024.0 * 1024.0 * 1024.0); // TB
+  return val;
+}
+
+
+// --- Generic Converter UI Function ---
+// This function handles the UI for any type of conversion.
+void runSpecificConverter(const char* title, const char** units, int totalUnits, float (*toBase)(float, int), float (*fromBase)(float, int)) {
+  int fromIndex = 0;
+  int toIndex = 1;
+  String input = "1"; // Start with a default value of 1
+  unsigned long gateTs = 0;
+  int cursorPos = 0; // 0=From, 1=To, 2=Value
+
+  while (!backPressed()) {
+    // Navigation
+    if (joyMovedUp(gateTs))    cursorPos = (cursorPos + 2) % 3;
+    if (joyMovedDown(gateTs))  cursorPos = (cursorPos + 1) % 3;
+
+    if (joyMovedLeft(gateTs)) {
+      if (cursorPos == 0) fromIndex = (fromIndex - 1 + totalUnits) % totalUnits;
+      if (cursorPos == 1) toIndex   = (toIndex - 1 + totalUnits) % totalUnits;
+    }
+    if (joyMovedRight(gateTs)) {
+      if (cursorPos == 0) fromIndex = (fromIndex + 1) % totalUnits;
+      if (cursorPos == 1) toIndex   = (toIndex + 1) % totalUnits;
     }
 
+    // Enter number
+    if (joyPressed() && cursorPos == 2) {
+      waitRelease(JOY_BTN);
+      input = openKeypad(input);
+    }
+
+    // Convert value
+    float value = input.toFloat();
+    float baseValue = toBase(value, fromIndex);
+    float result = fromBase(baseValue, toIndex);
+
+    // Draw UI
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setCursor(0, 0); 
+    display.println(title);
+    display.drawFastHLine(0, 8, 128, SSD1306_WHITE);
+
+    display.setCursor(0, 14);
+    if (cursorPos == 0) display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
+    else display.setTextColor(SSD1306_WHITE);
+    display.print("From: "); display.println(units[fromIndex]);
+
+    display.setCursor(0, 28);
+    if (cursorPos == 1) display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
+    else display.setTextColor(SSD1306_WHITE);
+    display.print("To:   "); display.println(units[toIndex]);
+
+    display.setCursor(0, 42);
+    if (cursorPos == 2) display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
+    else display.setTextColor(SSD1306_WHITE);
+    display.print("Value: "); display.println(input);
+
+    display.setTextColor(SSD1306_WHITE);
+    display.setCursor(0, 56);
+    display.print("= "); 
+    if (result > 999999 || (result < 0.001 && result != 0)) {
+        display.print(result, 4); 
+    } else {
+        display.print(result, 3);
+    }
+    display.print(" "); display.println(units[toIndex]);
+
     display.display();
-
     delay(50);
+  }
+  waitRelease(BACK_BTN);
+}
 
+
+// --- Main Unit Converter App Function ---
+// This is the new entry point for the "Unit Converter" menu item.
+void runUnitConverter() {
+  const char* categories[] = {"Distance", "Temperature", "Data"};
+  int totalCategories = 3;
+  int selection = 0;
+  unsigned long gateTs = 0;
+
+  while (true) {
+    if (backPressed()) {
+      waitRelease(BACK_BTN);
+      return; 
+    }
+    
+    if (joyPressed()) {
+      waitRelease(JOY_BTN);
+      break; 
+    }
+
+    if (joyMovedUp(gateTs))   selection = (selection - 1 + totalCategories) % totalCategories;
+    if (joyMovedDown(gateTs)) selection = (selection + 1) % totalCategories;
+
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setCursor(0, 0);
+    display.println("Choose Converter");
+    display.drawFastHLine(0, 10, 128, SSD1306_WHITE);
+
+    for (int i = 0; i < totalCategories; i++) {
+      display.setCursor(10, 18 + i * 12);
+      if (i == selection) {
+        display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
+      } else {
+        display.setTextColor(SSD1306_WHITE);
+      }
+      display.print("> ");
+      display.println(categories[i]);
+    }
+    display.setTextColor(SSD1306_WHITE);
+    display.display();
+    delay(50);
   }
 
-  waitRelease(BACK_BTN);
-
-  return input;
-
+  switch (selection) {
+    case 0: {
+      const char* units[] = {"Meter", "Km", "Cm", "Inch", "Foot"};
+      runSpecificConverter("Distance Conv.", units, 5, convertDistToBase, convertDistFromBase);
+      break;
+    }
+    case 1: {
+      const char* units[] = {"Celsius", "Fahrenheit", "Kelvin"};
+      runSpecificConverter("Temp. Conv.", units, 3, convertTempToBase, convertTempFromBase);
+      break;
+    }
+    case 2: {
+      const char* units[] = {"Byte", "KB", "MB", "GB", "TB"};
+      runSpecificConverter("Data Conv.", units, 5, convertDataBase, convertDataFromBase);
+      break;
+    }
+  }
 }
+
+// ==================== PERCENT CALCULATOR APP ====================
+// This app calculates discounts and taxes based on user input.
+// It features a menu to select the calculation type and uses a virtual
+// keypad for entering numbers.
+void runPercentCalculator() {
+  int mode = 0; // 0: menu, 1: discount, 2: tax
+  int selection = 0; // 0: discount, 1: tax in menu
+  unsigned long gateTs = 0;
+
+  // --- Main Menu for Percent Calculator ---
+  // This loop displays the initial menu to choose between the two calculator types.
+  while (mode == 0 && !backPressed()) {
+    if (joyMovedUp(gateTs)) selection = 0;
+    if (joyMovedDown(gateTs)) selection = 1;
+
+    if (joyPressed()) {
+      waitRelease(JOY_BTN);
+      mode = selection + 1; // Set mode to 1 for discount, 2 for tax
+      break;
+    }
+
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setTextColor(SSD1306_WHITE);
+    display.setCursor(0, 0);
+    display.println("Percent Calculator");
+    display.drawFastHLine(0, 10, 128, SSD1306_WHITE);
+
+    // Draw Discount option, highlighting if selected
+    display.setCursor(10, 24);
+    if (selection == 0) display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
+    else display.setTextColor(SSD1306_WHITE);
+    display.print("Discount Calculator");
+
+    // Draw Tax option, highlighting if selected
+    display.setCursor(10, 40);
+    if (selection == 1) display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
+    else display.setTextColor(SSD1306_WHITE);
+    display.print("Tax Calculator");
+    
+    display.setTextColor(SSD1306_WHITE); // Reset text color
+    display.display();
+    delay(50);
+  }
+
+  // If the user pressed BACK in the menu, exit the app
+  if (backPressed() || mode == 0) {
+      if(backPressed()) waitRelease(BACK_BTN);
+      return;
+  }
+  
+  // --- Actual Calculator Logic ---
+  String originalPriceStr = "100";
+  String percentStr = "10";
+  int cursorPos = 0; // 0: price field, 1: percent field, 2: calculate button
+  bool showResult = false;
+  float finalPrice = 0, amount = 0;
+
+  // Main loop for the calculator interface
+  while(!backPressed()) {
+    // Handle input when not showing the result
+    if (!showResult) {
+        if (joyMovedUp(gateTs)) cursorPos = (cursorPos + 2) % 3; // Cycle up
+        if (joyMovedDown(gateTs)) cursorPos = (cursorPos + 1) % 3; // Cycle down
+        
+        if (joyPressed()) {
+            waitRelease(JOY_BTN);
+            if (cursorPos == 0) { // Edit original price
+                originalPriceStr = openKeypad(originalPriceStr);
+            } else if (cursorPos == 1) { // Edit percentage
+                percentStr = openKeypad(percentStr);
+            } else { // Perform calculation
+                float originalPrice = originalPriceStr.toFloat();
+                float percent = percentStr.toFloat();
+
+                if (mode == 1) { // Discount calculation
+                    amount = originalPrice * (percent / 100.0f);
+                    finalPrice = originalPrice - amount;
+                } else { // Tax calculation
+                    amount = originalPrice * (percent / 100.0f);
+                    finalPrice = originalPrice + amount;
+                }
+                showResult = true; // Switch to result screen
+            }
+        }
+    } else { // On the result screen
+        if (joyPressed()) {
+            waitRelease(JOY_BTN);
+            showResult = false; // Go back to the input screen
+        }
+    }
+
+    // --- Drawing the UI ---
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setTextColor(SSD1306_WHITE);
+    display.setCursor(0, 0);
+    display.println(mode == 1 ? "Discount Calculator" : "Tax Calculator");
+    display.drawFastHLine(0, 10, 128, SSD1306_WHITE);
+
+    if (showResult) {
+        // Display the final calculated price and saved/tax amount
+        display.setCursor(0, 16);
+        display.print("Final Price: ");
+        display.setTextSize(2);
+        display.setCursor(0, 26);
+        display.print(finalPrice, 2);
+        display.setTextSize(1);
+        
+        display.setCursor(0, 44);
+        display.print(mode == 1 ? "You Saved: " : "Tax Amount: ");
+        display.print(amount, 2);
+
+        display.setCursor(20, 56);
+        display.print("Press to go back");
+    } else {
+        // Display the input fields and calculate button
+        // Original Price field
+        display.setCursor(0, 16);
+        if(cursorPos == 0) display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
+        display.print("Original Price: ");
+        display.print(originalPriceStr);
+        display.setTextColor(SSD1306_WHITE);
+
+        // Percentage field
+        display.setCursor(0, 28);
+        if(cursorPos == 1) display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
+        display.print(mode == 1 ? "Discount %: " : "Tax %: ");
+        display.print(percentStr);
+        display.setTextColor(SSD1306_WHITE);
+        
+        // Calculate button
+        display.setCursor(30, 44);
+        if(cursorPos == 2) display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
+        display.print("[ CALCULATE ]");
+        display.setTextColor(SSD1306_WHITE);
+    }
+    
+    display.display();
+    delay(50);
+  }
+  
+  waitRelease(BACK_BTN);
+}
+
 
 // BMI
 
@@ -3402,6 +3185,151 @@ game_over_shooter:
   waitRelease(BACK_BTN);
 
 }
+// ==================== FLAPPY BIRD APP ====================
+// Flappy Bird (8x8 pixels) - Frame 1 (wings middle)
+const unsigned char PROGMEM bird_frame1[] = {
+  0b00111100,
+  0b01111110,
+  0b11111000,
+  0b11111111,
+  0b11111100,
+  0b01100110,
+  0b00100100,
+  0b00000000
+};
+
+// Flappy Bird (8x8 pixels) - Frame 2 (wings down)
+const unsigned char PROGMEM bird_frame2[] = {
+  0b00000000,
+  0b01111110,
+  0b11100011,
+  0b11111111,
+  0b01111111,
+  0b00111110,
+  0b00011100,
+  0b00011100
+};
+// ==================== FLAPPY BIRD APP (EASIER VERSION) ====================
+// ==================== FLAPPY BIRD APP (EASIER VERSION + LOWER JUMP) ====================// ==================== FLAPPY BIRD APP (EASIER VERSION + LOWER JUMP) ====================
+// ==================== FLAPPY BIRD APP (EASIER VERSION + LOWER JUMP) ====================
+// ==================== FLAPPY BIRD APP (EASIER VERSION) ====================
+void runFlappyBird() {
+  // --- Game Constants (Adjusted for easier gameplay) ---
+  #define BIRD_X 24         // Bird's constant horizontal position
+  #define BIRD_WIDTH 8
+  #define BIRD_HEIGHT 8
+  #define GRAVITY 0.20      // EASIER: Reduced gravity for slower falling
+  #define FLAP_STRENGTH -2.4// The upward velocity boost from a flap
+  #define PIPE_WIDTH 12     // Width of the obstacle pipes
+  #define PIPE_GAP 34       // EASIER: Increased gap size for more room
+  #define PIPE_SPEED 0.8f   // EASIER: Slower pipe speed (note the 'f' for float)
+  #define PIPE_SPACING 85   // EASIER: More horizontal space between pipes
+
+  // --- Game State Variables ---
+  float birdY = SCREEN_HEIGHT / 2.0; // Bird's vertical position
+  float birdV = 0;                   // Bird's vertical velocity
+  int score = 0;
+  bool gameOver = false;
+  unsigned long animationTimer = 0;
+  bool frame1 = true;
+
+  // --- Pipe Management ---
+  // Using float for pipeX allows for smoother, slower speeds
+  float pipeX[2];      // Horizontal position of the two pipes
+  int pipeGapY[2];     // Vertical position of the gap for each pipe
+
+  // Initialize the two pipes to start off-screen
+  pipeX[0] = SCREEN_WIDTH;
+  pipeGapY[0] = random(10, SCREEN_HEIGHT - PIPE_GAP - 10);
+  pipeX[1] = SCREEN_WIDTH + PIPE_SPACING;
+  pipeGapY[1] = random(10, SCREEN_HEIGHT - PIPE_GAP - 10);
+
+  // ================== MAIN GAME LOOP ==================
+  while (!gameOver) {
+    // --- 1. Handle Input ---
+    if (joyPressed()) {
+      birdV = FLAP_STRENGTH;
+      waitRelease(JOY_BTN);
+    }
+    if (backPressed()){
+        waitRelease(BACK_BTN);
+        return;
+    }
+
+    // --- 2. Update Game Logic ---
+    birdV += GRAVITY;
+    birdY += birdV;
+
+    for (int i = 0; i < 2; i++) {
+      pipeX[i] -= PIPE_SPEED;
+
+      // Score point when the front of the bird passes the back of the pipe
+      if ((int)(pipeX[i] + PIPE_WIDTH) == BIRD_X) {
+        score++;
+      }
+
+      if (pipeX[i] < -PIPE_WIDTH) {
+        pipeX[i] = SCREEN_WIDTH;
+        pipeGapY[i] = random(10, SCREEN_HEIGHT - PIPE_GAP - 10);
+      }
+    }
+
+    // --- 3. Collision Detection ---
+    if (birdY < 0 || birdY + BIRD_HEIGHT > SCREEN_HEIGHT) {
+      gameOver = true;
+    }
+    for (int i = 0; i < 2; i++) {
+      if (BIRD_X + BIRD_WIDTH > pipeX[i] && BIRD_X < pipeX[i] + PIPE_WIDTH) {
+        if (birdY < pipeGapY[i] || birdY + BIRD_HEIGHT > pipeGapY[i] + PIPE_GAP) {
+          gameOver = true;
+        }
+      }
+    }
+
+    // --- 4. Drawing ---
+    display.clearDisplay();
+
+    if (millis() - animationTimer > 150) {
+      frame1 = !frame1;
+      animationTimer = millis();
+    }
+    display.drawBitmap(BIRD_X, (int)birdY, frame1 ? bird_frame1 : bird_frame2, BIRD_WIDTH, BIRD_HEIGHT, SSD1306_WHITE);
+
+    // Draw both pipes (casting pipeX to int for the drawing function)
+    for (int i = 0; i < 2; i++) {
+      display.fillRect((int)pipeX[i], 0, PIPE_WIDTH, pipeGapY[i], SSD1306_WHITE);
+      display.fillRect((int)pipeX[i], pipeGapY[i] + PIPE_GAP, PIPE_WIDTH, SCREEN_HEIGHT - (pipeGapY[i] + PIPE_GAP), SSD1306_WHITE);
+    }
+
+    display.setTextSize(1);
+    display.setTextColor(SSD1306_WHITE);
+    display.setCursor(0, 0);
+    display.print("Score: ");
+    display.print(score);
+
+    display.display();
+    delay(10);
+  }
+
+  // ================== GAME OVER SCREEN ==================
+  display.clearDisplay();
+  display.setTextSize(2);
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(16, 14);
+  display.print(F("GAME OVER"));
+  display.setTextSize(1);
+  display.setCursor(22, 38);
+  display.print(F("Score: "));
+  display.print(score);
+  display.setCursor(10, 50);
+  display.print(F("Press BACK to exit"));
+  display.display();
+
+  while (!backPressed()) {
+    delay(10);
+  }
+  waitRelease(BACK_BTN);
+}
 // ---
 // Sci Calculator Application
 // This function handles the logic for the scientific calculator,
@@ -3694,20 +3622,394 @@ void runElements() {
 }
 
 // --- Helper function to display "App Not Found" message ---
-void appNotFound() {
-  display.clearDisplay();
-  display.setTextSize(1);
-  display.setTextColor(SSD1306_WHITE);
-  display.setCursor(0, 20);
-  display.println("App Not Found");
-  display.setCursor(0, 40);
-  display.println("Press BACK to return");
-  display.display();
-  while(!backPressed()) {
-    delay(50);
-  }
-  waitRelease(BACK_BTN);
+
+
+// Wifi Scanner Application
+
+String getSignalStrengthStatus(long rssi) {
+
+    if (rssi >= -40) {
+
+        return "Excellent";
+
+    } else if (rssi >= -60) {
+
+        return "Good";
+
+    } else if (rssi >= -70) {
+
+        return "Fair";
+
+    } else {
+
+        return "Poor";
+
+    }
+
 }
+
+
+void runWifiScanner() {
+
+    display.clearDisplay();
+
+    display.setTextSize(1);
+
+    display.setTextColor(SSD1306_WHITE);
+
+    display.setCursor(0, 0);
+
+    display.println("Scanning for WiFi...");
+
+    display.display();
+
+    
+
+    // Set ESP32 to Wi-Fi station mode to scan networks.
+
+    WiFi.mode(WIFI_STA);
+
+    WiFi.disconnect(); // Disconnect from any previous networks
+
+    int n = WiFi.scanNetworks(); // Perform Wi-Fi scan, returns number of networks found
+
+
+    if (n == 0) { // If no networks found
+
+        display.clearDisplay();
+
+        display.println("No networks found.");
+
+        display.display();
+
+        delay(2000);
+
+        WiFi.scanDelete(); // Delete scan results to free memory
+
+        WiFi.mode(WIFI_OFF); // Turn off Wi-Fi to save power
+
+        return; // Exit the app
+
+    }
+
+
+    int currentWifiSelection = 0;       // Index of the currently selected Wi-Fi network
+
+    unsigned long lastNavTime = 0;    // Timestamp for menu navigation debouncing
+
+    int firstVisibleItem = 0;          // Index of the first item shown on the screen
+
+    const int MAX_WIFI_ITEMS = 5;      // Maximum Wi-Fi networks to display at once
+
+
+    // Phase 1: Display the list of Wi-Fi networks and allow selection
+
+    while(!backPressed()) {
+
+        if (joyPressed()){
+
+          waitRelease(JOY_BTN);
+
+          break; // Exit loop to go to phase 2
+
+        }
+
+
+        // Handle vertical navigation with joystick
+
+        if (joyMovedUp(lastNavTime)) {
+
+            currentWifiSelection--;
+
+            if (currentWifiSelection < 0) currentWifiSelection = n - 1; // Wrap around
+
+        }
+
+        if (joyMovedDown(lastNavTime)) {
+
+            currentWifiSelection++;
+
+            if (currentWifiSelection >= n) currentWifiSelection = 0; // Wrap around
+
+        }
+
+
+        // Adjust visible window of networks if selection goes off screen
+
+        if (currentWifiSelection < firstVisibleItem) {
+
+            firstVisibleItem = currentWifiSelection;
+
+        }
+
+        if (currentWifiSelection >= firstVisibleItem + MAX_WIFI_ITEMS) {
+
+            firstVisibleItem = currentWifiSelection - (MAX_WIFI_ITEMS - 1);
+
+        }
+
+
+        display.clearDisplay();
+
+        display.setCursor(0, 0);
+
+        display.setTextSize(1);
+
+        display.println("Select a Network:");
+
+        display.drawFastHLine(0, 10, 127, SSD1306_WHITE); // Separator line
+
+
+        // Draw visible network items
+
+        for (int i = 0; i < MAX_WIFI_ITEMS && (firstVisibleItem + i) < n; i++) {
+
+            int itemIndex = firstVisibleItem + i;
+
+            String ssid = WiFi.SSID(itemIndex); // Get SSID
+
+            long rssi = WiFi.RSSI(itemIndex);   // Get RSSI
+
+
+            display.setCursor(0, 16 + i * 9); // Position for current item
+
+            // Highlight selected item
+
+            if (itemIndex == currentWifiSelection) {
+
+                display.setTextColor(SSD1306_BLACK, SSD1306_WHITE); // Black text on white background
+
+            } else {
+
+                display.setTextColor(SSD1306_WHITE); // White text on black background
+
+            }
+
+
+            // Truncate long SSIDs
+
+            if (ssid.length() > 15) {
+
+                ssid = ssid.substring(0, 12) + "...";
+
+            }
+
+            display.print(ssid);
+
+            display.print(" (");
+
+            display.print(rssi);
+
+            display.print(")");
+
+        }
+
+        display.display(); // Update display
+
+        delay(10);
+
+    }
+
+    
+
+    // If the user pressed the back button, exit the app now
+
+    if (backPressed()) {
+
+        WiFi.scanDelete();
+
+        WiFi.mode(WIFI_OFF);
+
+        waitRelease(BACK_BTN);
+
+        return;
+
+    }
+
+
+    String selectedSSID = WiFi.SSID(currentWifiSelection); // Store selected SSID
+
+    
+
+    // Delete scan results to free up memory
+
+    WiFi.scanDelete();
+
+
+    // Phase 2: Display the real-time RSSI graph for the selected network
+
+    const int HISTORY_SIZE = 64; // Number of historical RSSI points to store
+
+    int history[HISTORY_SIZE] = {0}; // Array to store historical RSSI values
+
+    int historyIndex = 0;             // Current index in the circular history buffer
+
+    unsigned long lastReadTime = 0; // Timestamp of last RSSI reading
+
+    const unsigned long READ_INTERVAL = 250; // Interval for reading RSSI
+
+
+    while (!backPressed()) { // Loop until back button is pressed
+
+        if (millis() - lastReadTime >= READ_INTERVAL) { // Time to take a new reading
+
+            lastReadTime = millis();
+
+            
+
+            // Perform a quick scan to get the latest RSSI for the selected network
+
+            int newScanCount = WiFi.scanNetworks(false, true); // non-blocking, hidden networks allowed
+
+            long currentRssi = -100; // Default to a low value if network is not found
+
+            for (int i = 0; i < newScanCount; i++) {
+
+                if (WiFi.SSID(i) == selectedSSID) {
+
+                    currentRssi = WiFi.RSSI(i);
+
+                    break;
+
+                }
+
+            }
+
+            
+
+            history[historyIndex] = currentRssi; // Store in history
+
+            historyIndex = (historyIndex + 1) % HISTORY_SIZE; // Advance index (circular)
+
+            WiFi.scanDelete(); // Delete scan results to free memory
+
+        }
+
+
+        // Calculate min, max, and average RSSI for dynamic graph scaling and display
+
+        int minRssi = -100; // Default min for mapping
+
+        int maxRssi = -30;  // Default max for mapping
+
+        long totalRssi = 0;
+
+        int validCount = 0;
+
+        for (int i = 0; i < HISTORY_SIZE; i++) {
+
+            if (history[i] != 0) { // Only consider valid readings
+
+                if (history[i] < minRssi) minRssi = history[i];
+
+                if (history[i] > maxRssi) maxRssi = history[i];
+
+                totalRssi += history[i];
+
+                validCount++;
+
+            }
+
+        }
+
+        long averageRssi = validCount > 0 ? totalRssi / validCount : 0;
+
+        // Ensure min and max are not identical to prevent map() issues
+
+        if (minRssi == maxRssi) {
+
+            minRssi -= 5;
+
+            maxRssi += 5;
+
+        }
+
+
+        display.clearDisplay();
+
+        display.setTextSize(1);
+
+        display.setTextColor(SSD1306_WHITE);
+
+        display.setCursor(0, 0);
+
+        display.print("Tracking: ");
+
+        // Display selected SSID (truncated if too long)
+
+        display.println(selectedSSID.substring(0, min(14, (int)selectedSSID.length())));
+
+
+        display.setCursor(0, 8);
+
+        display.print("Avg: ");
+
+        display.print(averageRssi);
+
+        display.println(" dBm"); // Display average RSSI
+
+
+        display.setCursor(0, 16);
+
+        // Get and display signal quality status
+
+        String signalStatus = getSignalStrengthStatus(history[(historyIndex + HISTORY_SIZE - 1) % HISTORY_SIZE]);
+
+        display.print("Status: ");
+
+        display.println(signalStatus);
+
+
+        // Draw the graph area border
+
+        display.drawRect(0, 30, 128, 34, SSD1306_WHITE);
+
+        // Display min/max RSSI labels on the Y-axis
+
+        display.setCursor(1, 32); display.print(maxRssi);
+
+        display.setCursor(1, 56); display.print(minRssi);
+
+
+        // Draw the filled area graph for RSSI history
+
+        // Iterates through history, mapping RSSI to Y position and drawing vertical lines
+
+        for (int i = 0; i < HISTORY_SIZE; i++) {
+
+          // Map RSSI value to screen Y coordinate (inverted for graph display)
+
+          // `63` is the bottom of the graph area, `31` is the top
+
+          int y1 = map(history[(historyIndex + i) % HISTORY_SIZE], minRssi, maxRssi, 63, 31);
+
+          if (history[(historyIndex + i) % HISTORY_SIZE] != 0) { // Only draw valid points
+
+            // Draw a vertical line from the bottom of the graph to the data point
+
+            display.drawLine(1 + i*2, 63, 1 + i*2, y1, SSD1306_WHITE);
+
+          }
+
+        }
+
+        
+
+        display.display(); // Update the display
+
+        delay(10); // Small delay for smooth updates
+
+    }
+
+    
+
+    WiFi.mode(WIFI_OFF); // Turn off Wi-Fi
+
+    waitRelease(BACK_BTN); // Wait for back button release
+
+}
+
+
 
 // --- Helper function to launch apps from the command prompt ---
 
