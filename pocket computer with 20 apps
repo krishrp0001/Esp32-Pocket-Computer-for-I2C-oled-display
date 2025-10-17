@@ -1,10 +1,48 @@
-/*This is a source code for making ESP32 pocket computer by Krish rp of Vasavi Vidyalaya Matriculation Higher secondary school*/
+/*
 
-/* Team members of this project are
-Krish RP,
-Gowtham S,
-Dev Karthi, 
-Karthi S. */
+In this code there are 20 Applications for wifi tools look for another code
+in this repo
+
+    "Calculator",
+
+    "Stopwatch",
+
+    "Alarm",
+
+    "Snake",
+
+    "Distance",
+
+    "Temperature",
+
+    "Sunlight",
+
+    "Pong",
+
+    "Wifi Scanner",
+
+    "Notes",
+
+    "Dice Roller",
+
+    "Paint",
+
+    "Unit Convetor",
+
+    "BMI",
+
+    "Timer",
+
+    "SpaceShooter",
+    
+    "SciCalculator",
+    
+    "Elements",
+    
+    "Command Prompt",
+    
+
+*/
 
 //cpp
 //ESP32 pocket computer 
