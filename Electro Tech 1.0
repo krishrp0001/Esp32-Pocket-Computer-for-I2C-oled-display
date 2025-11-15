@@ -1,0 +1,5352 @@
+/*This is a source code for making ESP32 pocket computer by Krish rp of Vasavi Vidyalaya Matriculation Higher secondary school*/
+
+/* LATEST VERSION WITH SPECIAL MENU STYLE UPDATE AND WITH NEW APPS*/
+/* * MODIFIED VERSION: 
+
+
+AVAILABLE APPS
+
+
+void runCalculator();
+void runStopwatch();
+void runSOS();
+void runSnake();
+void runDistance();
+void runTemperature();
+void runSunlight();
+void runPong();
+void runNotesApp();
+void runMonitor();
+void runDice();
+void runPaint();
+void runUnitConverter();
+void runPercentCalculator();
+void runBMI();
+void runTimer();
+void runSpaceShooter();
+void runFlappyBird();
+void runSciCalculator();
+void runElements();
+void runWifiScanner();
+void runWiFiLocator();
+void runJammer();
+void handleSelection();
+void showMenu();
+static void waitRelease(uint8_t pin);
+void runIntroAnimation();
+void runSetTime();    // New App
+void runAlarm();      // New App
+void checkAlarm();    // New Helper
+void runAlarmRinging(); // New Helper
+void runIRRemote();
+void runWifiDetails();
+void runMorseCode();
+
+ 
+ */
+
+
+
+
+//cpp
+//ESP32 Mini Computer 
+#include <Arduino.h>
+#include <WiFi.h>
+#include <time.h>   // For timestamps
+#include <PubSubClient.h> // For internet chat
+#include <WiFiClient.h>
+#include <Wire.h>
+#include <math.h>
+#include <IRremoteESP8266.h>
+#include <IRrecv.h>
+#include <IRsend.h>
+#include <IRutils.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
+#include <esp_wifi.h>
+#include <SPI.h>
+#include <nRF24L01.h>
+#include <RF24.h>
+#include <esp_system.h>
+#include "esp_adc_cal.h"
+#include <sys/time.h>   // For settimeofday()
+
+
+
+// Screen dimensions for the OLED display
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+
+// Initialize the SSD1306 display object
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
+
+
+// ==================== PIN DEFINITIONS & CONFIG ====================
+// GPIO pin assignments for joystick, buttons, and sensors
+#define JOY_X      34     // Analog pin for Joystick X-axis
+#define JOY_Y      35     // Analog pin for Joystick Y-axis
+#define JOY_BTN    32   // Digital pin for Joystick button (pull-up)
+#define BACK_BTN   33     // Digital pin for Back button (pull-up)
+#define TRIG_PIN   25     // Digital pin for Ultrasonic Sensor Trigger
+#define ECHO_PIN   26     // Digital pin for Ultrasonic Sensor Echo
+#define BUZZER_PIN 27     // Digital pin for Buzzer
+#define THERM_PIN  36     // Analog pin for Thermistor (ADC1_CH0)
+#define LDR_PIN    39     // Analog pin for Light Dependent Resistor (ADC1_CH3)
+#define IR_RECV_PIN 15  // Example pin for TSOP1838 data
+#define IR_SEND_PIN 12   // Example pin for IR LED blaster
+// Joystick calibration and navigation settings
+#define JOY_CENTER    2048  // Approximate center value for joystick analog read
+#define JOY_DEADZONE  500   // Range around center where movement is ignored
+#define NRF_CE_PIN  5  // Example pin, change if needed
+#define NRF_CSN_PIN 4  // Example pin, change if needed
+#define RESISTOR_PIN 2
+
+
+RF24 radio1(NRF_CE_PIN, NRF_CSN_PIN);
+SPIClass * sp = nullptr; // Pointer for SPI object
+
+#define NAV_DELAY     180   // Milliseconds delay between menu cursor moves
+
+
+// --- Menu State Variables ---
+enum MenuState {
+    MAIN_MENU,
+    GAMES_MENU,
+    TOOLS_MENU,
+    CALCULATOR_MENU,
+    WIFI_MENU
+};
+
+MenuState currentMenu = MAIN_MENU;
+
+// Main Menu
+String mainMenuItems[] = {"Games", "Tools", "Calculators", "WiFi Tools"};
+int totalMainMenuItems = 4;
+
+// Sub-Menus
+String gameMenuItems[] = {"Snake", "Pong", "Dice Roller", "Paint", "SpaceShooter", "Flappy Bird"};
+int totalGameMenuItems = 6;
+
+String toolMenuItems[] = {"Stopwatch", "SOS", "Distance", "Temperature", "Sunlight", "Timer", "Notes", "Monitor", "Set Time", "Alarm","IR Remote","Morse Code"};
+int totalToolMenuItems = 12; 
+
+String calculatorMenuItems[] = {"Calculator", "SciCalculator", "Percent Calculator", "BMI", "Unit Convetor", "Elements"};
+int totalCalculatorMenuItems = 6;
+
+String wifiMenuItems[] = {"Wifi Scanner", "WiFi Locator", "Wifi Details","Jammer"};
+int totalWifiMenuItems = 4;
+
+
+int currentSelection = 0;       // Index of the currently selected menu item
+unsigned long lastMoveTime = 0; // Timestamp of the last menu navigation
+bool inApp = false;             // Flag to indicate if an application is currently running
+
+// MODIFICATION: Global variable to store the note across app sessions
+String savedNote = "";
+
+// --- Alarm & Time Globals ---
+int alarmHour = -1;     // Stores the display hour
+int alarmMinute = -1;   // Stores the display minute
+bool isAlarmSet = false; // Is alarm "armed"
+bool alarmRinging = false; // Is alarm "going off"
+time_t targetAlarmTimestamp = 0; // The specific UNIX timestamp the alarm will ring at
+// ==================== FORWARD DECLARATIONS ====================
+void runCalculator();
+void runStopwatch();
+void runSOS();
+void runSnake();
+void runDistance();
+void runTemperature();
+void runSunlight();
+void runPong();
+void runNotesApp();
+void runMonitor();
+void runDice();
+void runPaint();
+void runUnitConverter();
+void runPercentCalculator();
+void runBMI();
+void runTimer();
+void runSpaceShooter();
+void runFlappyBird();
+void runSciCalculator();
+void runElements();
+void runWifiScanner();
+void runWiFiLocator();
+void handleSelection();
+void showMenu();
+void runJammer();
+void runIntroAnimation();
+void runSetTime();    // New App
+void runAlarm();      // New App
+void checkAlarm();    // New Helper
+void runAlarmRinging(); // New Helper
+void runIRRemote();
+void runWifiDetails();
+void runWifiChat();
+void runMorseCode();
+
+
+// ==================== SETUP & MAIN LOOP ====================
+
+void setup() {
+    Serial.begin(115200); // Initialize serial communication for debugging
+    Wire.begin(21, 22);   // Initialize I2C for OLED display (SDA=21, SCL=22)
+
+    // Set pin modes for buttons and sensors
+    pinMode(JOY_BTN, INPUT_PULLUP);
+    pinMode(BACK_BTN, INPUT_PULLUP);
+    pinMode(LDR_PIN, INPUT); // LDR is an analog input
+    pinMode(BUZZER_PIN, OUTPUT); // Set buzzer pin as output
+
+    analogReadResolution(12); // Set ADC resolution to 12 bits (0-4095)
+    
+    // --- Initialize Internal RTC ---
+    // Set a default time (Jan 1, 2024). User must set the correct time.
+    struct tm timeinfo;
+    timeinfo.tm_year = 2024 - 1900;
+    timeinfo.tm_mon = 0; // January
+    timeinfo.tm_mday = 1;
+    timeinfo.tm_hour = 12;
+    timeinfo.tm_min = 0;
+    timeinfo.tm_sec = 0;
+    time_t t = mktime(&timeinfo);
+    struct timeval tv = { .tv_sec = t, .tv_usec = 0 };
+    settimeofday(&tv, NULL);
+    // ---
+
+    // Initialize OLED display
+    if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+        Serial.println(F("SSD1306 allocation failed"));
+        for (;;); // Loop indefinitely if display fails to initialize
+    }
+    
+    // MODIFICATION: Run the intro animation and wallpaper screen
+    runIntroAnimation();
+
+    // Display a loading message on the OLED
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setTextColor(SSD1306_WHITE);
+    display.setCursor(0, 0);
+    display.println("Menu Loading...");
+    display.display();
+    delay(500); // Short delay for display
+}
+
+
+void loop() {
+    if (alarmRinging) {
+        // If the alarm is going off, take over the screen
+        runAlarmRinging();
+    } else if (!inApp) {
+        // If not in an app, check the alarm and show the menu
+        checkAlarm(); // Check if the alarm should start
+        
+        showMenu(); // Display and handle menu navigation
+
+        if (digitalRead(JOY_BTN) == LOW) {
+            waitRelease(JOY_BTN);
+            handleSelection();
+        }
+        
+        if (digitalRead(BACK_BTN) == LOW) {
+            waitRelease(BACK_BTN);
+            if (currentMenu != MAIN_MENU) {
+                currentMenu = MAIN_MENU;
+                currentSelection = 0;
+            }
+        }
+    }
+}
+
+// MODIFICATION: Updated intro animation function
+// It now shows the animation, then holds on a "wallpaper" screen
+// with the date and time, waiting for a joy_btn press to continue.
+void runIntroAnimation() {
+    display.clearDisplay();
+    display.setTextSize(2);
+    display.setTextColor(SSD1306_WHITE);
+
+    int finalX_E = (SCREEN_WIDTH - 7 * 12) / 2; // "ELECTRO" is 7 chars
+    int finalX_T = (SCREEN_WIDTH - 4 * 12) / 2; // "TECH" is 4 chars
+
+    // Animate text sliding in from the sides
+    for (int i = 0; i <= 25; i++) {
+        int currentX_E = map(i, 0, 25, -84, finalX_E);
+        int currentX_T = map(i, 0, 25, 128, finalX_T);
+
+        display.clearDisplay();
+        display.setCursor(currentX_E, 16);
+        display.print("ELECTRO");
+        display.setCursor(currentX_T, 36);
+        display.print("TECH");
+        display.display();
+        delay(15);
+    }
+    delay(500); // Hold the final text
+
+    // Now, loop on the wallpaper screen until the joystick is pressed
+    struct tm timeinfo;
+    char timeStr[9]; // HH:MM:SS
+    char dateStr[11]; // YYYY-MM-DD
+
+    while (digitalRead(JOY_BTN) == HIGH) { // Wait for press
+        
+        // Get current time
+        getLocalTime(&timeinfo);
+        // Format time and date
+        strftime(timeStr, sizeof(timeStr), "%H:%M:%S", &timeinfo);
+        strftime(dateStr, sizeof(dateStr), "%Y-%m-%d", &timeinfo);
+
+        display.clearDisplay();
+        display.setTextSize(2);
+        display.setTextColor(SSD1306_WHITE);
+        
+        // Display "ELECTRO TECH"
+        display.setCursor(finalX_E, 8); // Moved up
+        display.print("ELECTRO");
+        display.setCursor(finalX_T, 28); // Moved up
+        display.print("TECH");
+
+        // Display Date and Time
+        display.setTextSize(1);
+        display.setCursor((SCREEN_WIDTH - 10 * 6) / 2, 48); // Center "YYYY-MM-DD"
+        display.print(dateStr);
+        
+        display.setCursor((SCREEN_WIDTH - 8 * 6) / 2, 56); // Center "HH:MM:SS"
+        display.print(timeStr);
+
+        display.display();
+        delay(100); // Refresh rate for the clock
+    }
+    
+    waitRelease(JOY_BTN); // Wait for release to prevent double-click
+}
+
+
+// ==================== MENU & APP LAUNCHER ====================
+
+void handleSelection() {
+    String selectionName = "";
+
+    switch (currentMenu) {
+        case MAIN_MENU:
+            if (currentSelection == 0) currentMenu = GAMES_MENU;
+            else if (currentSelection == 1) currentMenu = TOOLS_MENU;
+            else if (currentSelection == 2) currentMenu = CALCULATOR_MENU;
+            else if (currentSelection == 3) currentMenu = WIFI_MENU;
+            currentSelection = 0; // Reset selection for the new menu
+            return; 
+
+        case GAMES_MENU:
+            selectionName = gameMenuItems[currentSelection];
+            break;
+        case TOOLS_MENU:
+            selectionName = toolMenuItems[currentSelection];
+            break;
+        case CALCULATOR_MENU:
+            selectionName = calculatorMenuItems[currentSelection];
+            break;
+        case WIFI_MENU:
+            selectionName = wifiMenuItems[currentSelection];
+            break;
+    }
+
+    inApp = true;
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setTextColor(SSD1306_WHITE);
+    display.setCursor(0, 0);
+    display.print("Opening: ");
+    display.println(selectionName);
+    display.display();
+    delay(500);
+
+    // Launch app based on the string name
+    if (selectionName == "Snake") runSnake();
+    else if (selectionName == "Pong") runPong();
+    else if (selectionName == "Dice Roller") runDice();
+    else if (selectionName == "Paint") runPaint();
+    else if (selectionName == "SpaceShooter") runSpaceShooter();
+    else if (selectionName == "Flappy Bird") runFlappyBird();
+    else if (selectionName == "Stopwatch") runStopwatch();
+    else if (selectionName == "SOS") runSOS();
+    else if (selectionName == "Distance") runDistance();
+    else if (selectionName == "Temperature") runTemperature();
+    else if (selectionName == "Sunlight") runSunlight();
+    else if (selectionName == "Timer") runTimer();
+    else if (selectionName == "Notes") runNotesApp();
+    else if (selectionName == "Monitor") runMonitor();
+    else if (selectionName == "Set Time") runSetTime(); // New App
+    else if (selectionName == "Alarm") runAlarm();     // New App
+    else if (selectionName == "IR Remote") runIRRemote();
+    else if (selectionName == "Calculator") runCalculator();
+    else if (selectionName == "SciCalculator") runSciCalculator();
+    else if (selectionName == "Percent Calculator") runPercentCalculator();
+    else if (selectionName == "BMI") runBMI();
+    else if (selectionName == "Unit Convetor") runUnitConverter();
+    else if (selectionName == "Elements") runElements();
+    else if (selectionName == "Wifi Scanner") runWifiScanner();
+    else if (selectionName == "WiFi Locator") runWiFiLocator();
+    else if (selectionName == "Morse Code") runMorseCode();
+    else if (selectionName == "Wifi Details") runWifiDetails();
+    else if (selectionName == "Jammer") runJammer();
+    inApp = false;
+}
+
+void showMenu() {
+    int yValue = analogRead(JOY_Y);
+    unsigned long currentTime = millis();
+
+    String* currentMenuItems;
+    int currentTotalItems;
+    String menuTitle;
+
+    switch (currentMenu) {
+        case MAIN_MENU:
+            currentMenuItems = mainMenuItems;
+            currentTotalItems = totalMainMenuItems;
+            menuTitle = "ESP32 Menu";
+            break;
+        case GAMES_MENU:
+            currentMenuItems = gameMenuItems;
+            currentTotalItems = totalGameMenuItems;
+            menuTitle = "Games";
+            break;
+        case TOOLS_MENU:
+            currentMenuItems = toolMenuItems;
+            currentTotalItems = totalToolMenuItems;
+            menuTitle = "Tools";
+            break;
+        case CALCULATOR_MENU:
+            currentMenuItems = calculatorMenuItems;
+            currentTotalItems = totalCalculatorMenuItems;
+            menuTitle = "Calculators";
+            break;
+        case WIFI_MENU:
+            currentMenuItems = wifiMenuItems;
+            currentTotalItems = totalWifiMenuItems;
+            menuTitle = "WiFi Tools";
+            break;
+    }
+
+    if (currentTime - lastMoveTime > NAV_DELAY) {
+        if (yValue < (JOY_CENTER - JOY_DEADZONE)) {
+            currentSelection--;
+            if (currentSelection < 0) currentSelection = currentTotalItems - 1;
+            lastMoveTime = currentTime;
+        } else if (yValue > (JOY_CENTER + JOY_DEADZONE)) {
+            currentSelection++;
+            if (currentSelection >= currentTotalItems) currentSelection = 0;
+            lastMoveTime = currentTime;
+        }
+    }
+
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setTextColor(SSD1306_WHITE);
+    display.setCursor(0, 0);
+    display.println(menuTitle);
+    display.drawFastHLine(0, 8, SCREEN_WIDTH, SSD1306_WHITE);
+
+    const int MAX_ITEMS_ON_SCREEN = 5;
+    const int LINE_HEIGHT = 11;
+    int startItem = 0;
+
+    if (currentSelection >= MAX_ITEMS_ON_SCREEN) {
+        startItem = currentSelection - (MAX_ITEMS_ON_SCREEN - 1);
+    }
+
+    for (int i = startItem; i < startItem + MAX_ITEMS_ON_SCREEN && i < currentTotalItems; i++) {
+        int yPos = 12 + (i - startItem) * LINE_HEIGHT;
+        display.setCursor(0, yPos);
+        
+        if (i == currentSelection) {
+            display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
+        } else {
+            display.setTextColor(SSD1306_WHITE);
+        }
+        display.print("> ");
+        display.print(currentMenuItems[i]);
+    }
+    display.setTextColor(SSD1306_WHITE); // Reset color
+    display.display();
+}
+
+// ==================== PART 2: APP FUNCTIONS (HELPER FUNCTIONS) ====================
+static inline bool backPressed() { return digitalRead(BACK_BTN) == LOW; }
+static inline bool joyPressed()  { return digitalRead(JOY_BTN)  == LOW; }
+static inline int joyX() { return analogRead(JOY_X); }
+static inline int joyY() { return analogRead(JOY_Y); }
+
+static bool joyMovedLeft(unsigned long &gateTs) {
+    if (joyX() < JOY_CENTER - JOY_DEADZONE && millis() - gateTs > NAV_DELAY) { gateTs = millis(); return true; }
+    return false;
+}
+static bool joyMovedRight(unsigned long &gateTs) {
+    if (joyX() > JOY_CENTER + JOY_DEADZONE && millis() - gateTs > NAV_DELAY) { gateTs = millis(); return true; }
+    return false;
+}
+static bool joyMovedUp(unsigned long &gateTs) {
+    if (joyY() < JOY_CENTER - JOY_DEADZONE && millis() - gateTs > NAV_DELAY) { gateTs = millis(); return true; }
+    return false;
+}
+static bool joyMovedDown(unsigned long &gateTs) {
+    if (joyY() > JOY_CENTER + JOY_DEADZONE && millis() - gateTs > NAV_DELAY) { gateTs = millis(); return true; }
+    return false;
+}
+static void waitRelease(uint8_t pin) {
+    while (digitalRead(pin) == LOW) delay(10);
+}
+
+void drawMultiline(String text, int x, int y, int maxCharsPerLine) {
+    String currentLine = "";
+    String remainingText = text;
+    int lastSpace = -1;
+
+    display.setCursor(x, y);
+
+    while (remainingText.length() > 0) {
+        currentLine = "";
+        int cutIndex = maxCharsPerLine;
+        if (remainingText.length() <= maxCharsPerLine) {
+            currentLine = remainingText;
+            remainingText = "";
+        } else {
+            cutIndex = remainingText.lastIndexOf(' ', maxCharsPerLine);
+            if (cutIndex == -1) {
+                cutIndex = maxCharsPerLine;
+            }
+            currentLine = remainingText.substring(0, cutIndex);
+            remainingText = remainingText.substring(cutIndex + (cutIndex != maxCharsPerLine ? 1 : 0));
+        }
+        display.println(currentLine);
+    }
+}
+
+// ... (Existing App Functions) ...
+
+// ---------------------------------------------------------------------------------------------------------------------------------------
+
+// Sunlight Alarm Application
+void runSunlight() {
+    // ... (This function's code is unchanged) ...
+    const int SUNLIGHT_THRESHOLD = 3000; // Threshold for determining "bright"
+    pinMode(BUZZER_PIN, OUTPUT); // Set buzzer pin as output
+    analogReadResolution(12);    // Ensure ADC resolution is 12 bits
+
+    while (!backPressed()) { // Loop until back button is pressed
+        int ldrValue = analogRead(LDR_PIN); // Read LDR sensor value
+        bool isBright = ldrValue > SUNLIGHT_THRESHOLD; // Check if it's bright
+        digitalWrite(BUZZER_PIN, isBright ? HIGH : LOW); // Activate buzzer if bright
+        display.clearDisplay();
+        display.setTextSize(1);
+        display.setTextColor(SSD1306_WHITE);
+        display.setCursor(0, 0);
+        display.print(F("Sunlight Alarm"));
+        display.setCursor(0, 16);
+        display.print(F("LDR Value: "));
+        display.print(ldrValue);
+        display.setTextSize(2); // Larger text for alarm status
+        display.setCursor(10, 38);
+        if (isBright) {
+            display.print(F("ALARM!")); // Display alarm message
+        } else {
+            display.print(F("Dark...")); // Display dark message
+        }
+        display.display();
+        delay(100); // Small delay for refresh
+    }
+    digitalWrite(BUZZER_PIN, LOW); // Turn off buzzer when exiting
+    waitRelease(BACK_BTN);
+}
+
+
+// ---------------------------------------------------------------------------------------------------------------------------------------
+
+// Calculator Application
+void runCalculator() {
+    // ... (This function's code is unchanged) ...
+    const char keys[5][4] = {
+        {'7','8','9','/'},
+        {'4','5','6','*'},
+        {'1','2','3','-'},
+        {'0','.','=','+'},
+        {'C','<','_',' '} // C=Clear, <=Backspace, _=Sign Change
+    };
+    int row = 0, col = 0;
+    unsigned long gateTs = 0;
+    String current = "";
+    double result = 0.0;
+    char op = 0;
+    bool showedResult = false;
+    auto applyOp = [&](double lhs, char oper, double rhs) -> double {
+        if (oper == '+') return lhs + rhs;
+        if (oper == '-') return lhs - rhs;
+        if (oper == '*') return lhs * rhs;
+        if (oper == '/') return (rhs != 0.0) ? (lhs / rhs) : 0.0;
+        return rhs;
+    };
+    auto pushNumberThen = [&](char newOpOrEq){
+        if (current.length() == 0) {
+            if (newOpOrEq != '=') op = newOpOrEq;
+            return;
+        }
+        double v = current.toDouble();
+        if (op == 0) result = v;
+        else result = applyOp(result, op, v);
+        current = "";
+        if (newOpOrEq == '=') { op = 0; showedResult = true; }
+        else { op = newOpOrEq; showedResult = false; }
+    };
+    while (!backPressed()) {
+        if (joyMovedLeft(gateTs))  col = (col + 3) % 4;
+        if (joyMovedRight(gateTs)) col = (col + 1) % 4;
+        if (joyMovedUp(gateTs))    row = (row + 4) % 5;
+        if (joyMovedDown(gateTs))  row = (row + 1) % 5;
+        if (joyPressed()) {
+            waitRelease(JOY_BTN);
+            char key = keys[row][col];
+            if (key == 'C') {
+                current = ""; result = 0; op = 0; showedResult = false;
+            }
+            else if (key == '<') {
+                if (current.length()) current.remove(current.length()-1);
+            }
+            else if (key == '_') {
+                if (current.length() == 0 && result != 0) { current = String(-result, 4); result = 0; }
+                else if (current.startsWith("-")) current.remove(0,1);
+                else current = "-" + current;
+            }
+            else if (key == '=') {
+                pushNumberThen('=');
+            }
+            else if (strchr("+-*/", key)) {
+                pushNumberThen(key);
+            }
+            else if (key == '.') {
+                if (showedResult) { current = "0"; showedResult = false; }
+                if (current.indexOf('.') < 0) current += ".";
+            }
+            else if (isdigit(key)) {
+                if (showedResult) { current = ""; showedResult = false; }
+                if (current == "0") current = key; else current += key;
+            }
+        }
+        display.clearDisplay();
+        display.drawRect(0, 0, 128, 20, SSD1306_WHITE);
+        display.setTextSize(2);
+        display.setTextColor(SSD1306_WHITE);
+        display.setCursor(4, 4);
+        String displayText = showedResult ? String(result, 4) : current;
+        if (displayText.length() == 0) {
+            displayText = (op == 0) ? String(result, 4) : String(result, 2) + op;
+        }
+        if(displayText.length() > 10) displayText = displayText.substring(displayText.length() - 10);
+        display.print(displayText);
+        display.setTextSize(1);
+        for (int r = 0; r < 5; r++) {
+            for (int c = 0; c < 4; c++) {
+                if (keys[r][c] == ' ') continue;
+                int x = c * 32;
+                int y = 22 + r * 9;
+                bool sel = (r == row && c == col);
+                if (sel) { display.fillRect(x, y, 31, 9, SSD1306_WHITE); display.setTextColor(SSD1306_BLACK); }
+                else { display.setTextColor(SSD1306_WHITE); }
+                int tx = x + 12;
+                display.setCursor(tx, y + 1);
+                display.print(keys[r][c] == '_' ? "+/-" : String(keys[r][c]));
+            }
+        }
+        display.display();
+        delay(10);
+    }
+    waitRelease(BACK_BTN);
+}
+
+// ---------------------------------------------------------------------------------------------------------------------------------------
+
+// Stopwatch Application
+void runStopwatch() {
+    // ... (This function's code is unchanged) ...
+    unsigned long startMs = 0;
+    unsigned long pausedMs = 0;
+    bool running = false;
+    auto elapsedMs = [&]() -> unsigned long {
+        if (running) return millis() - startMs;
+        return pausedMs;
+    };
+    unsigned long pressTs = 0;
+    bool pressed = false;
+    while (!backPressed()) {
+        if (!pressed && joyPressed()) { pressed = true; pressTs = millis(); }
+        if (pressed && !joyPressed()) {
+            unsigned long dur = millis() - pressTs;
+            if (dur > 800) {
+                running = false; startMs = 0; pausedMs = 0;
+            } else {
+                if (!running) {
+                    running = true;
+                    startMs = millis() - pausedMs;
+                } else {
+                    running = false;
+                    pausedMs = millis() - startMs;
+                }
+            }
+            pressed = false;
+        }
+        unsigned long ms = elapsedMs();
+        unsigned long totalSec = ms / 1000UL;
+        uint16_t mins = totalSec / 60;
+        uint8_t secs  = totalSec % 60;
+        uint16_t centisecs = (ms % 1000) / 10;
+        display.clearDisplay();
+        display.setTextSize(1); display.setTextColor(SSD1306_WHITE);
+        display.setCursor(0,0); display.print(F("Press=Start/Stop, Hold=Reset"));
+        display.setTextSize(3);
+        display.setCursor(10, 24);
+        if (mins < 10) display.print("0");
+        display.print(mins);
+        display.print(":");
+        if (secs < 10) display.print("0");
+        display.print(secs);
+        display.setTextSize(2);
+        display.setCursor(95, 30);
+        if (centisecs < 10) display.print("0");
+        display.print(centisecs);
+        display.display();
+        delay(50);
+    }
+    waitRelease(BACK_BTN);
+}
+
+// ---------------------------------------------------------------------------------------------------------------------------------------
+
+// SOS Application (Simple Buzzer)
+void runSOS() {
+    // ... (This function's code is unchanged) ...
+    display.clearDisplay();
+    display.setTextSize(2); display.setTextColor(SSD1306_WHITE);
+    display.setCursor(18, 8);  display.print(F("SOS"));
+    display.setTextSize(1);
+    display.setCursor(12, 32); display.print(F("Buzzer is ON"));
+    display.setCursor(8, 46);  display.print(F("Press BACK to stop"));
+    display.display();
+    pinMode(BUZZER_PIN, OUTPUT);
+    unsigned long toneStart = millis();
+    while (!backPressed()) {
+        if(millis() - toneStart > 200){
+            digitalWrite(BUZZER_PIN, !digitalRead(BUZZER_PIN));
+            toneStart = millis();
+        }
+        delay(10);
+    }
+    digitalWrite(BUZZER_PIN, LOW);
+    waitRelease(BACK_BTN);
+}
+
+// ---------------------------------------------------------------------------------------------------------------------------------------
+
+// Snake Game Application
+void runSnake() {
+    // ... (This function's code is unchanged) ...
+    #define CELL 4
+    #define GRID_W (128 / CELL)
+    #define GRID_H (64 / CELL)
+    #define MAX_LEN 80
+    uint8_t sx[MAX_LEN], sy[MAX_LEN];
+    int length = 4;
+    int headX = GRID_W/2, headY = GRID_H/2;
+    int vx = 1, vy = 0;
+    for (int i=0;i<length;i++){ sx[i]=headX-i; sy[i]=headY; }
+    auto placeFruit = [&]() -> uint16_t {
+        int fx, fy;
+        bool onSnake;
+        do {
+            onSnake = false;
+            fx = random(0, GRID_W);
+            fy = random(0, GRID_H);
+            for(int i = 0; i < length; i++){
+                if(sx[i] == fx && sy[i] == fy){ onSnake = true; break; }
+            }
+        } while(onSnake);
+        return (uint16_t)fx << 8 | (uint16_t)fy;
+    };
+    randomSeed(analogRead(0));
+    uint16_t fruit = placeFruit();
+    int fx = fruit >> 8, fy = fruit & 0xFF;
+    unsigned long stepTs = 0;
+    const unsigned long stepEvery = 160;
+    while (!backPressed()) {
+        if (joyX() < JOY_CENTER - JOY_DEADZONE && vx != 1)  { vx=-1; vy=0; }
+        if (joyX() > JOY_CENTER + JOY_DEADZONE && vx != -1) { vx=1;  vy=0; }
+        if (joyY() < JOY_CENTER - JOY_DEADZONE && vy != 1)  { vx=0;  vy=-1; }
+        if (joyY() > JOY_CENTER + JOY_DEADZONE && vy != -1) { vx=0;  vy=1; }
+        if (millis() - stepTs >= stepEvery) {
+            stepTs = millis();
+            for (int i=length-1; i>0; --i) { sx[i]=sx[i-1]; sy[i]=sy[i-1]; }
+            sx[0] = (sx[0] + vx + GRID_W) % GRID_W;
+            sy[0] = (sy[0] + vy + GRID_H) % GRID_H;
+            for (int i=1;i<length;i++){ if (sx[0]==sx[i] && sy[0]==sy[i]) { goto game_over; } }
+            if (sx[0]==fx && sy[0]==fy) {
+                if (length < MAX_LEN) { length++; }
+                fruit = placeFruit();
+                fx = fruit >> 8;
+                fy = fruit & 0xFF;
+            }
+        }
+        display.clearDisplay();
+        display.fillRect(fx*CELL, fy*CELL, CELL, CELL, SSD1306_WHITE);
+        for (int i=0;i<length;i++) display.fillRect(sx[i]*CELL, sy[i]*CELL, CELL, CELL, SSD1306_WHITE);
+        display.display();
+        delay(10);
+    }
+    waitRelease(BACK_BTN);
+    return;
+    game_over:
+    display.clearDisplay();
+    display.setTextSize(2); display.setTextColor(SSD1306_WHITE);
+    display.setCursor(16, 14); display.print(F("GAME OVER"));
+    display.setTextSize(1);
+    display.setCursor(22, 38); display.print(F("Score: ")); display.print(length - 4);
+    display.setCursor(10, 50); display.print(F("Press BACK to exit"));
+    display.display();
+    while (!backPressed()) delay(10);
+    waitRelease(BACK_BTN);
+}
+
+// ---------------------------------------------------------------------------------------------------------------------------------------
+
+// Distance Sensor Application (Ultrasonic)
+void runDistance() {
+    // ... (This function's code is unchanged) ...
+    pinMode(TRIG_PIN, OUTPUT);
+    pinMode(ECHO_PIN, INPUT);
+    while (!backPressed()) {
+        digitalWrite(TRIG_PIN, LOW);  delayMicroseconds(2);
+        digitalWrite(TRIG_PIN, HIGH); delayMicroseconds(10);
+        digitalWrite(TRIG_PIN, LOW);
+        long duration = pulseIn(ECHO_PIN, HIGH, 38000);
+        float cm = (duration > 0) ? (duration * 0.0343f / 2.0f) : -1.0f;
+        display.clearDisplay();
+        display.setTextSize(1); display.setTextColor(SSD1306_WHITE);
+        display.setCursor(0,0); display.print(F("Distance Sensor"));
+        display.setTextSize(3); display.setCursor(0,24);
+        if (cm > 0 && cm < 900) {
+            display.print(cm, 1);
+            display.setTextSize(2);
+            display.print(F(" cm"));
+        } else {
+            display.setTextSize(1);
+            display.setCursor(0,32);
+            display.print(F("Out of Range"));
+        }
+        display.display();
+        delay(120);
+    }
+    waitRelease(BACK_BTN);
+}
+
+// ---------------------------------------------------------------------------------------------------------------------------------------
+
+// Temperature Sensor Application (Thermistor)
+// MODIFICATION: Changed BETA value from 3435.0f to 3950.0f for better accuracy
+// with common 10k NTC thermistors.
+void runTemperature() {
+
+    const float BETA = 3950.0f;    // Beta coefficient (3950 is common for 10k NTC, adjust if needed)
+    const float R_FIXED = 10000.0f; // Value of the fixed resistor in the voltage divider (10k Ohm)
+    analogReadResolution(12);       // Ensure ADC resolution is 12 bits
+
+    while (!backPressed()) { // Loop until back button is pressed
+        int adc = 0;
+        // Take multiple readings and average them for stability
+        for(int i=0; i<5; i++){ adc += analogRead(THERM_PIN); delay(5); }
+        adc /= 5;
+
+        if (adc < 1) adc = 1; // Prevent division by zero or log of zero
+        
+        // Calculate thermistor resistance using voltage divider formula
+        // Assumes divider setup: 3.3V -> R_FIXED -> (ADC_PIN) -> THERMISTOR -> GND
+        float rTherm = R_FIXED * (4095.0f / (float)adc - 1.0f);
+
+        // Steinhart-Hart equation (simplified) to convert resistance to temperature
+        float lnR = log(rTherm / 10000.0f); // Natural log of R/R0 (R0 is resistance at 25C, assumed 10k)
+        float invT = (1.0f / 298.15f) + (lnR / BETA); // Inverse of temperature in Kelvin
+        float tempK = 1.0f / invT; // Temperature in Kelvin
+        float tempC = tempK - 273.15f ; // Convert to Celsius
+        tempC += 11.5f; // Add +8°C calibration offset // Convert to Celsius
+        float tempF = tempC * 9.0 / 5.0 + 32.0; // Convert to Fahrenheit
+
+        display.clearDisplay();
+        display.setTextSize(1); display.setTextColor(SSD1306_WHITE);
+        display.setCursor(0,0); display.print(F("Temperature")); // Title
+        display.setTextSize(2); // Larger text for temperature values
+        display.setCursor(0,20);
+        display.print(tempC, 1); display.print(F(" C")); // Display Celsius
+        display.setCursor(0,44);
+        display.print(tempF, 1); display.print(F(" F")); // Display Fahrenheit
+        display.display(); // Update display
+        delay(500); // Refresh every 500ms
+    }
+    waitRelease(BACK_BTN); // Wait for back button release
+}
+
+
+// ---------------------------------------------------------------------------------------------------------------------------------------
+
+// Pong Game Application
+void runPong() {
+    // ... (This function's code is unchanged) ...
+    #define PADDLE_WIDTH 2
+    #define PADDLE_HEIGHT 12
+    #define BALL_SIZE 2
+    int scorePlayer = 0;
+    int scoreCPU = 0;
+    int playerY = (SCREEN_HEIGHT - PADDLE_HEIGHT) / 2;
+    int cpuY = (SCREEN_HEIGHT - PADDLE_HEIGHT) / 2;
+    float ballX = SCREEN_WIDTH / 2;
+    float ballY = SCREEN_HEIGHT / 2;
+    float ballVX = 1.5;
+    float ballVY = 1.0;
+    unsigned long lastMoveTime = 0;
+    unsigned long cpuLastMoveTime = 0;
+    auto resetBall = [&]() {
+        ballX = SCREEN_WIDTH / 2;
+        ballY = SCREEN_HEIGHT / 2;
+        ballVX *= -1.0;
+        ballVY = random(10, 20) / 10.0;
+    };
+    while (!backPressed() && scorePlayer < 5 && scoreCPU < 5) {
+        int yValue = joyY();
+        if (millis() - lastMoveTime > 10) {
+            if (yValue < (JOY_CENTER - JOY_DEADZONE)) {
+                playerY = max(0, playerY - 2);
+                lastMoveTime = millis();
+            } else if (yValue > (JOY_CENTER + JOY_DEADZONE)) {
+                playerY = min(SCREEN_HEIGHT - PADDLE_HEIGHT, playerY + 2);
+                lastMoveTime = millis();
+            }
+        }
+        int cpuDelay = map(scorePlayer, 0, 4, 10, 5);
+        if (millis() - cpuLastMoveTime > cpuDelay) {
+            if (ballY < cpuY + PADDLE_HEIGHT / 2) {
+                cpuY = max(0, cpuY - 1);
+            } else if (ballY > cpuY + PADDLE_HEIGHT / 2) {
+                cpuY = min(SCREEN_HEIGHT - PADDLE_HEIGHT, cpuY + 1);
+            }
+            cpuLastMoveTime = millis();
+        }
+        ballX += ballVX;
+        ballY += ballVY;
+        if (ballY <= 0 || ballY >= SCREEN_HEIGHT - BALL_SIZE) {
+            ballVY *= -1;
+        }
+        if (ballX >= SCREEN_WIDTH - PADDLE_WIDTH - BALL_SIZE && ballY + BALL_SIZE >= playerY && ballY <= playerY + PADDLE_HEIGHT) {
+            ballVX = -1 * min(abs(ballVX * 1.1), 3.0);
+            ballVY = min(abs(ballVY * 1.1), 3.0);
+            ballX = SCREEN_WIDTH - PADDLE_WIDTH - BALL_SIZE - 1;
+        }
+        if (ballX <= PADDLE_WIDTH && ballY + BALL_SIZE >= cpuY && ballY <= cpuY + PADDLE_HEIGHT) {
+            ballVX = 1 * min(abs(ballVX * 1.1), 3.0);
+            ballVY = min(abs(ballVY * 1.1), 3.0);
+            ballX = PADDLE_WIDTH + 1;
+        }
+        if (ballX < 0) {
+            scorePlayer++;
+            resetBall();
+        }
+        if (ballX > SCREEN_WIDTH) {
+            scoreCPU++;
+            resetBall();
+        }
+        display.clearDisplay();
+        display.setTextSize(1);
+        display.setTextColor(SSD1306_WHITE);
+        display.setCursor(SCREEN_WIDTH / 2 - 20, 0);
+        display.print(scoreCPU);
+        display.setCursor(SCREEN_WIDTH / 2 + 10, 0);
+        display.print(scorePlayer);
+        for (int i = 0; i < SCREEN_HEIGHT; i += 4) {
+            display.drawPixel(SCREEN_WIDTH / 2, i, SSD1306_WHITE);
+        }
+        display.fillRect(0, cpuY, PADDLE_WIDTH, PADDLE_HEIGHT, SSD1306_WHITE);
+        display.fillRect(SCREEN_WIDTH - PADDLE_WIDTH, playerY, PADDLE_WIDTH, PADDLE_HEIGHT, SSD1306_WHITE);
+        display.fillRect(ballX, ballY, BALL_SIZE, BALL_SIZE, SSD1306_WHITE);
+        display.display();
+        delay(10);
+    }
+    display.clearDisplay();
+    display.setTextSize(2);
+    display.setCursor(16, 14);
+    display.print(F("GAME OVER"));
+    display.setTextSize(1);
+    display.setCursor(20, 38);
+    if (scorePlayer > scoreCPU) {
+        display.print(F("YOU WIN!"));
+    } else {
+        display.print(F("YOU LOSE!"));
+    }
+    display.setCursor(10, 50);
+    display.print(F("Press BACK to exit"));
+    display.display();
+    while (!backPressed()) delay(10);
+    waitRelease(BACK_BTN);
+}
+
+
+// ---------------------------------------------------------------------------------------------------------------------------------------
+
+// =======================================================================================
+// ==================== NEWLY ADDED / MODIFIED APPLICATIONS ================================
+// =======================================================================================
+
+// ---------------------------------------------------------------------------------------------------------------------------------------
+// --- NEW APP: Set Time ---
+// App to set the internal Real-Time Clock (RTC)
+void runSetTime() {
+    struct tm timeinfo;
+    getLocalTime(&timeinfo); // Get current time settings
+
+    int currentField = 0; // 0=Year, 1=Month, 2=Day, 3=Hour, 4=Minute
+    const int numFields = 5;
+    unsigned long gateTs = 0;
+
+    // Load current time into temporary variables
+    int year = timeinfo.tm_year + 1900;
+    int month = timeinfo.tm_mon + 1; // tm_mon is 0-11
+    int day = timeinfo.tm_mday;
+    int hour = timeinfo.tm_hour;
+    int minute = timeinfo.tm_min;
+
+    while (!backPressed()) {
+        // --- Input ---
+        if (joyMovedLeft(gateTs)) currentField = (currentField - 1 + numFields) % numFields;
+        if (joyMovedRight(gateTs)) currentField = (currentField + 1) % numFields;
+
+        int yVal = joyY();
+        if (millis() - gateTs > NAV_DELAY) {
+            if (yVal < (JOY_CENTER - JOY_DEADZONE)) { // Up
+                if (currentField == 0) year++;
+                else if (currentField == 1) month = (month % 12) + 1;
+                else if (currentField == 2) day = (day % 31) + 1; // Simple, no month-length check
+                else if (currentField == 3) hour = (hour + 1) % 24;
+                else if (currentField == 4) minute = (minute + 1) % 60;
+                gateTs = millis();
+            } else if (yVal > (JOY_CENTER + JOY_DEADZONE)) { // Down
+                if (currentField == 0) year--;
+                else if (currentField == 1) month = (month == 1) ? 12 : month - 1;
+                else if (currentField == 2) day = (day == 1) ? 31 : day - 1;
+                else if (currentField == 3) hour = (hour == 0) ? 23 : hour - 1;
+                else if (currentField == 4) minute = (minute == 0) ? 59 : minute - 1;
+                gateTs = millis();
+            }
+        }
+        
+        // --- Save ---
+        if (joyPressed()) {
+            waitRelease(JOY_BTN);
+            
+            // Put values into struct tm
+            timeinfo.tm_year = year - 1900;
+            timeinfo.tm_mon = month - 1; // Convert back to 0-11
+            timeinfo.tm_mday = day;
+            timeinfo.tm_hour = hour;
+            timeinfo.tm_min = minute;
+            timeinfo.tm_sec = 0; // Reset seconds
+            
+            // Set the system time
+            time_t t = mktime(&timeinfo);
+            struct timeval tv = { .tv_sec = t, .tv_usec = 0 };
+            settimeofday(&tv, NULL);
+            
+            break; // Exit app
+        }
+
+        // --- Drawing ---
+        display.clearDisplay();
+        display.setTextSize(1);
+        display.setTextColor(SSD1306_WHITE);
+        display.setCursor(0, 0);
+        display.println("Set Time (Joy=Save)");
+        display.drawFastHLine(0, 10, 128, SSD1306_WHITE);
+        
+        char buf[20];
+        
+        // Year
+        display.setCursor(0, 16);
+        if (currentField == 0) display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
+        sprintf(buf, "Year:   %d", year);
+        display.print(buf);
+        display.setTextColor(SSD1306_WHITE);
+
+        // Month
+        display.setCursor(0, 26);
+        if (currentField == 1) display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
+        sprintf(buf, "Month:  %d", month);
+        display.print(buf);
+        display.setTextColor(SSD1306_WHITE);
+
+        // Day
+        display.setCursor(0, 36);
+        if (currentField == 2) display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
+        sprintf(buf, "Day:    %d", day);
+        display.print(buf);
+        display.setTextColor(SSD1306_WHITE);
+
+        // Hour
+        display.setCursor(0, 46);
+        if (currentField == 3) display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
+        sprintf(buf, "Hour:   %d", hour);
+        display.print(buf);
+        display.setTextColor(SSD1306_WHITE);
+
+        // Minute
+        display.setCursor(0, 56);
+        if (currentField == 4) display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
+        sprintf(buf, "Minute: %d", minute);
+        display.print(buf);
+        display.setTextColor(SSD1306_WHITE);
+        
+        display.display();
+        delay(50);
+    }
+    waitRelease(BACK_BTN);
+}
+
+
+// ---------------------------------------------------------------------------------------------------------------------------------------
+// --- NEW APP: Alarm ---
+// App to set the alarm time
+/**
+ * CORRECTED ALARM APP CODE (v2) - Fixes "missed minute" bug
+ *
+ * * Replace the following parts in your main .cpp file:
+ * 1. The "Alarm & Time Globals" section.
+ * 2. The "runAlarm()" function.
+ * 3. The "checkAlarm()" function.
+ * 4. The "runAlarmRinging()" function.
+ *
+ * * This code uses <time.h> functions to set a specific timestamp,
+ * which prevents the alarm from being missed if you are inside
+ * another app when the alarm time is reached.
+ */
+
+// =======================================================
+// 1. Corrected Alarm & Time Globals
+// (Place this at the top of your file with other globals)
+// =======================================================
+
+// --- Alarm & Time Globals ---
+
+
+
+// =======================================================
+// 2. Corrected runAlarm() function
+// (Replace your existing runAlarm() function)
+// =======================================================
+
+// --- NEW APP: Alarm ---
+// App to set the alarm time
+void runAlarm() {
+    int currentField = 0; // 0=Hour, 1=Minute, 2=Set
+    unsigned long gateTs = 0;
+    
+    // Load default or existing alarm time
+    int tempHour = (alarmHour == -1) ? 7 : alarmHour;
+    int tempMinute = (alarmMinute == -1) ? 0 : alarmMinute;
+    bool tempEnabled = isAlarmSet;
+    
+    while (!backPressed()) {
+        // --- Input ---
+        if (joyMovedLeft(gateTs)) {
+             currentField = (currentField - 1 + 3) % 3; // Cycle left
+        } else if (joyMovedRight(gateTs)) {
+             currentField = (currentField + 1) % 3; // Cycle right
+        }
+
+        int yVal = joyY();
+        if (millis() - gateTs > NAV_DELAY) {
+            if (yVal < (JOY_CENTER - JOY_DEADZONE)) { // Up
+                if (currentField == 0) tempHour = (tempHour + 1) % 24;
+                else if (currentField == 1) tempMinute = (tempMinute + 1) % 60;
+                gateTs = millis();
+            } else if (yVal > (JOY_CENTER + JOY_DEADZONE)) { // Down
+                if (currentField == 0) tempHour = (tempHour == 0) ? 23 : tempHour - 1;
+                else if (currentField == 1) tempMinute = (tempMinute == 0) ? 59 : tempMinute - 1;
+                gateTs = millis();
+            }
+        }
+        
+        // --- Save / Toggle ---
+        if (joyPressed()) {
+            waitRelease(JOY_BTN);
+            
+            // This helper function calculates and sets the target timestamp
+            auto setOrUpdateAlarm = [&]() {
+                alarmHour = tempHour;
+                alarmMinute = tempMinute;
+                isAlarmSet = tempEnabled;
+                
+                if (tempEnabled) {
+                    // Alarm is ON, calculate the next timestamp
+                    struct tm timeinfo;
+                    getLocalTime(&timeinfo); // Get current time
+                    time_t now_t = mktime(&timeinfo);
+
+                    // Set up alarm time for "today" based on current date
+                    timeinfo.tm_hour = tempHour;
+                    timeinfo.tm_min = tempMinute;
+                    timeinfo.tm_sec = 0;
+                    time_t alarm_t = mktime(&timeinfo);
+
+                    if (alarm_t <= now_t) {
+                        // If alarm time for today is in the past, set for tomorrow
+                        alarm_t += 86400; // Add 24 hours (in seconds)
+                    }
+                    targetAlarmTimestamp = alarm_t; // Store the target
+                } else {
+                    // Alarm is OFF
+                    targetAlarmTimestamp = 0; // Clear target
+                }
+            };
+
+            if (currentField == 2) {
+                // Toggle and SAVE
+                tempEnabled = !tempEnabled;
+                setOrUpdateAlarm();
+            } else {
+                // Pressing on Hour/Minute saves all and exits
+                setOrUpdateAlarm();
+                break; // Exit app
+            }
+        }
+
+        // --- Drawing ---
+        display.clearDisplay();
+        display.setTextSize(1);
+        display.setTextColor(SSD1306_WHITE);
+        display.setCursor(0, 0);
+        display.println("Set Alarm (Joy=Set/Exit)");
+        display.drawFastHLine(0, 10, 128, SSD1306_WHITE);
+        
+        // Hour
+        display.setCursor(20, 24);
+        display.setTextSize(2);
+        if (currentField == 0) display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
+        if (tempHour < 10) display.print("0");
+        display.print(tempHour);
+        display.setTextColor(SSD1306_WHITE);
+
+        display.print(":");
+
+        // Minute
+        if (currentField == 1) display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
+        if (tempMinute < 10) display.print("0");
+        display.print(tempMinute);
+        display.setTextColor(SSD1306_WHITE);
+        
+        // Enabled/Disabled
+        display.setTextSize(1);
+        display.setCursor(20, 48);
+        if (currentField == 2) display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
+        display.print(tempEnabled ? "[ ALARM ON ]" : "[ ALARM OFF ]");
+        display.setTextColor(SSD1306_WHITE);
+        
+        display.display();
+        delay(50);
+    }
+    if(backPressed()) waitRelease(BACK_BTN);
+}
+
+
+// =======================================================
+// 3. Corrected checkAlarm() function
+// (Replace your existing checkAlarm() function)
+// =======================================================
+
+// --- NEW HELPER: Check Alarm ---
+// Called from the main loop to see if the alarm should go off
+void checkAlarm() {
+    // Check if alarm is armed and not already ringing
+    if (!isAlarmSet || alarmRinging || targetAlarmTimestamp == 0) {
+        return; 
+    }
+    
+    // Get current time as timestamp
+    struct tm timeinfo;
+    getLocalTime(&timeinfo);
+    time_t now_t = mktime(&timeinfo);
+    
+    // Check if the current time is on or after the target alarm time
+    if (now_t >= targetAlarmTimestamp) {
+        alarmRinging = true;       // Trigger the alarm
+        isAlarmSet = false;        // Disarm
+        targetAlarmTimestamp = 0; // Clear target
+    }
+}
+
+
+// =======================================================
+// 4. Corrected runAlarmRinging() function
+// (Replace your existing runAlarmRinging() function)
+// =======================================================
+
+// --- NEW HELPER: Run Alarm Ringing ---
+// This takes over the screen when the alarm is ringing
+void runAlarmRinging() {
+    display.clearDisplay();
+    display.setTextSize(3);
+    display.setTextColor(SSD1306_WHITE);
+    display.setCursor(18, 16);
+    display.print("ALARM!");
+    
+    display.setTextSize(1);
+    display.setCursor(10, 48);
+    display.print("Press any key...");
+    display.display();
+
+    // Beep buzzer
+    digitalWrite(BUZZER_PIN, HIGH);
+    delay(200);
+    digitalWrite(BUZZER_PIN, LOW);
+    delay(200);
+
+    // Stop ringing on any button press
+    bool joy = joyPressed();
+    bool back = backPressed();
+
+    if (joy || back) {
+        alarmRinging = false;
+        digitalWrite(BUZZER_PIN, LOW); // Ensure buzzer is off
+        
+        // Wait for all pressed buttons to be released
+        if (joy) waitRelease(JOY_BTN);
+        if (back) waitRelease(BACK_BTN);
+    }
+}
+
+// ---------------------------------------------------------------------------------------------------------------------------------------
+// --- NEW HELPER: Check Alarm ---
+// Called from the main loop to see if the alarm should go off
+
+// ---------------------------------------------------------------------------------------------------------------------------------------
+// Notes Application// Notes Application
+// MODIFICATION: The 'note' variable is now the global 'savedNote'
+void runNotesApp() {
+
+  const char chars[] = "abcdefghijklmnopqrstuvwxyz _<"; 
+
+  int charIndex = 0;
+
+  bool onDelete = false; // true = delete button selected
+
+  unsigned long gateTs = 0;
+
+
+  while (!backPressed()) {
+
+
+    // --- Move Left/Right when not on delete button ---
+
+    if (!onDelete) {
+
+      if (joyMovedLeft(gateTs)) { 
+
+        charIndex--;
+
+        if (charIndex < 0) charIndex = strlen(chars) - 1;
+
+      } else if (joyMovedRight(gateTs)) { 
+
+        charIndex++;
+
+        if (charIndex >= strlen(chars)) charIndex = 0;
+
+      }
+
+    }
+
+
+    // --- Move Down to Delete button ---
+
+    if (joyMovedDown(gateTs)) {  
+
+      onDelete = true;
+
+    }
+    // --- Move Up back to typing mode ---
+
+    else if (joyMovedUp(gateTs)) {
+
+      onDelete = false;
+
+    }
+
+
+    // --- Joystick Button Press ---
+
+    if (joyPressed()) {
+
+      waitRelease(JOY_BTN);
+
+      if (onDelete) {
+
+        savedNote = "";  // clear whole note
+
+      } else {
+
+        char c = chars[charIndex];
+
+        if (c == '_') {
+
+          savedNote += ' ';
+
+        } else if (c == '<') {
+
+          if (savedNote.length() > 0) savedNote.remove(savedNote.length() - 1);
+
+        } else {
+
+          savedNote += c;
+
+        }
+
+      }
+
+    }
+
+
+    // --- Draw Screen ---
+
+    display.clearDisplay();
+
+    display.setTextSize(1);
+
+    display.setTextColor(SSD1306_WHITE);
+
+    display.setCursor(0, 0);
+
+    display.println("Notes App");
+
+    display.drawFastHLine(0, 8, 128, SSD1306_WHITE);
+
+
+    // Show typed note
+
+    display.setCursor(0, 12);
+
+    display.println("Note:");
+
+    drawMultiline(savedNote, 0, 22, 21); // Use the helper to draw the note
+
+
+    // Show delete button or current character selection
+
+    if (onDelete) {
+
+      display.setCursor(0, 54);
+
+      display.setTextColor(SSD1306_BLACK, SSD1306_WHITE); // inverted highlight
+
+      display.print("[DELETE NOTE]");
+
+      display.setTextColor(SSD1306_WHITE); 
+
+    } else {
+
+      display.setCursor(0, 54);
+
+      display.print("Char: '");
+
+      if (chars[charIndex] == '_') display.print(" ");
+
+      else if (chars[charIndex] == '<') display.print("Del");
+
+      else display.print(chars[charIndex]);
+
+      display.print("'");
+
+    }
+
+
+    display.display();
+
+    delay(10);
+
+  }
+
+  waitRelease(BACK_BTN);
+
+}
+
+
+//==========    Monitor      ==================
+
+
+
+
+
+// ==================== MONITOR APP (UPDATED) ====================
+// This app displays real-time system information for the ESP32.
+// This function is designed to show LIVE values by calling all
+// system functions inside the while() loop.
+//
+// FIXES in this version:
+// 1. More accurate temperature reading by disabling WiFi first.
+// 2. RAM and CPU speed are read on every loop to be "live".
+// 3. ROM (Flash size) is static and will not change.// ==================== MONITOR APP (TEMP FIX) ====================
+// This version fixes the "double conversion" bug for the internal
+// chip temperature. The temperatureRead() function on this ESP32
+// core already returns Celsius, so we will not convert it again.
+//
+void runMonitor() {
+    
+    // Store the current WiFi mode to restore it later
+    wifi_mode_t lastWifiMode = WiFi.getMode();
+    // Turn off WiFi before entering the loop to ensure stable ADC readings
+    // for the internal temperature sensor.
+    WiFi.mode(WIFI_OFF);
+    delay(100); // Give the radio a moment to power down
+
+    while (!backPressed()) {
+        display.clearDisplay();
+        display.setTextSize(1);
+        display.setTextColor(SSD1306_WHITE);
+        display.setCursor(0, 0);
+        display.println("ESP32 System Monitor");
+        display.drawFastHLine(0, 9, SCREEN_WIDTH, SSD1306_WHITE);
+
+        // --- ROM (Flash Memory) ---
+        // This value is static (it's your program size).
+        float flashSize = ESP.getFlashChipSize() / (1024.0 * 1024.0);
+        float sketchSize = ESP.getSketchSize() / (1024.0 * 1024.0);
+        display.setCursor(0, 12);
+        display.printf("ROM: %.2f/%.2f MB", sketchSize, flashSize);
+
+        // --- RAM (Heap Memory) ---
+        // This is read every loop for a live value.
+        float totalHeap = ESP.getHeapSize() / 1024.0;
+        float freeHeap = ESP.getFreeHeap() / 1024.0;
+        float usedHeap = totalHeap - freeHeap;
+        display.setCursor(0, 22);
+        display.printf("RAM: %.1f/%.1f KB", usedHeap, totalHeap);
+        
+        // --- Real-Time CPU Frequency ---
+        // This is read every loop for a live value.
+        display.setCursor(0, 32);
+        display.print("CPU Speed: ");
+        display.print(ESP.getCpuFreqMHz());
+        display.print(" MHz");
+
+        // --- Internal Temperature (FIXED) ---
+        // We read the value and print it directly.
+        // The temperatureRead() function already returns Celsius.
+        float tempC = temperatureRead(); 
+        display.setCursor(0, 42);
+        display.print("Chip Temp: ");
+        display.print(tempC, 1);
+        display.print(" C");
+
+        // --- Progress bar for RAM usage ---
+        float ramUsagePercent = (usedHeap / totalHeap) * 100.0f;
+        display.setCursor(0, 54);
+        display.print("RAM Usage:");
+        
+        // Draw the border for the usage bar
+        display.drawRect(64, 54, 62, 8, SSD1306_WHITE);
+        // Clear the inside of the bar
+        display.fillRect(65, 55, 60, 6, SSD1306_BLACK);
+        
+        // Calculate the width of the filled part of the bar
+        int barWidth = map(ramUsagePercent, 0, 100, 0, 60);
+        // Draw the filled bar
+        if (barWidth > 0) {
+            display.fillRect(65, 55, barWidth, 6, SSD1306_WHITE);
+        }
+
+        display.display();
+        delay(500); // Refresh the screen every half a second
+    }
+    
+    // Before exiting, restore the previous WiFi mode.
+    WiFi.mode(lastWifiMode);
+    delay(100);
+
+    waitRelease(BACK_BTN); // Wait for the back button to be released
+}
+
+
+
+
+
+
+// Dice Roller Application
+
+void runDice() {
+
+    int count = 2; // number of dice (1..6)
+
+    const int sidesOptions[] = {4, 6, 8, 10, 12, 20};
+
+    int sidesIdx = 1; // start at d6
+
+    int results[6] = {0,0,0,0,0,0};
+
+    int sum = 0;
+
+
+    unsigned long gateTs = 0;
+
+    randomSeed(esp_random()); // good entropy on ESP32
+
+
+    auto doRoll = [&](){
+
+        // quick animation
+
+        for (int frame=0; frame<10; ++frame) {
+
+            for (int i=0;i<count;i++) results[i] = random(1, sidesOptions[sidesIdx] + 1);
+
+            sum = 0; for (int i=0;i<count;i++) sum += results[i];
+
+
+            display.clearDisplay();
+
+            display.setTextSize(1); display.setTextColor(SSD1306_WHITE);
+
+            display.setCursor(0,0); display.print(F("Dice Roller  "));
+
+            display.print(count); display.print("x d"); display.print(sidesOptions[sidesIdx]);
+
+
+            // draw results grid
+
+            int x = 0, y = 14;
+
+            for (int i=0;i<count;i++) {
+
+                display.drawRect(x, y, 40, 16, SSD1306_WHITE);
+
+                display.setCursor(x+12, y+3);
+
+                display.setTextSize(2);
+
+                display.print(results[i]);
+
+                display.setTextSize(1);
+
+                x += 42;
+
+                if (x + 40 > 128) { x = 0; y += 18; }
+
+            }
+
+            // sum
+
+            display.setCursor(0, 52);
+
+            display.print(F("Sum: "));
+
+            display.setTextSize(2); display.setCursor(42, 48); display.print(sum);
+
+            display.setTextSize(1);
+
+
+            display.display();
+
+            delay(40 + frame*6); // easing
+
+        }
+
+    };
+
+
+    // initial preview
+
+    doRoll();
+
+
+    while (!backPressed()) {
+
+        // controls
+
+        if (joyMovedUp(gateTs))    { count = min(6, count + 1); doRoll(); }
+
+        if (joyMovedDown(gateTs))  { count = max(1, count - 1); doRoll(); }
+
+        if (joyMovedLeft(gateTs))  { sidesIdx = (sidesIdx + 5) % 6; doRoll(); }
+
+        if (joyMovedRight(gateTs)) { sidesIdx = (sidesIdx + 1) % 6; doRoll(); }
+
+
+        if (joyPressed()) {
+
+            waitRelease(JOY_BTN);
+
+            doRoll();
+
+        }
+
+
+        // passive UI refresh (no animation) to show current settings
+
+        display.clearDisplay();
+
+        display.setTextSize(1); display.setTextColor(SSD1306_WHITE);
+
+        display.setCursor(0,0); display.print(count); display.print("x d"); display.print(sidesOptions[sidesIdx]);
+
+
+        int x = 0, y = 14;
+
+        sum = 0; for (int i=0;i<count;i++) sum += results[i];
+
+        for (int i=0;i<count;i++) {
+
+            display.drawRect(x, y, 40, 16, SSD1306_WHITE);
+
+            display.setCursor(x+12, y+3);
+
+            display.setTextSize(2);
+
+            if (results[i] == 0) display.print("-");
+
+            else display.print(results[i]);
+
+            display.setTextSize(1);
+
+            x += 42;9;
+
+            
+
+            if (x + 40 > 128) { x = 0; y += 18; }
+
+        }
+
+
+        display.setCursor(0, 52);
+
+        display.print(F("Sum: "));
+
+        display.setTextSize(2); display.setCursor(42, 48); display.print(sum);
+
+        display.setTextSize(1);
+
+        display.setCursor(68, 0); display.print(F("Press=Roll"));
+
+
+        display.display();
+
+        delay(10);
+
+    }
+
+    waitRelease(BACK_BTN);
+
+}
+
+
+// ==================== PAINT APP ====================
+// ==================== PAINT APP ====================
+// ==================== PAINT APP ====================
+// ==================== PAINT APP ====================
+
+void runPaint() {
+
+  int cursorX = SCREEN_WIDTH / 2;
+
+  int cursorY = SCREEN_HEIGHT / 2;
+
+  bool penDown = false;      // true = drawing mode
+
+  unsigned long pressStart = 0;
+
+
+  display.clearDisplay();
+
+  display.setTextSize(1);
+
+  display.setCursor(0, 0);
+
+  display.print("Paint");
+
+  display.display();
+
+  delay(800);
+
+
+  display.clearDisplay();
+
+  display.display();
+
+
+  while (true) {
+
+    int xVal = analogRead(JOY_X);
+
+    int yVal = analogRead(JOY_Y);
+
+    bool btn = digitalRead(JOY_BTN) == LOW;
+
+    bool back = digitalRead(BACK_BTN) == LOW;
+
+
+    // Exit app with BACK button
+
+    if (back) {
+
+      delay(200);
+
+      return;
+
+    }
+
+
+    // Move cursor - adjust movement for 2x2 "pixel"
+
+    if (xVal < 1000 && cursorX > 0) cursorX -= 2; // Move by 2 pixels
+
+    if (xVal > 3000 && cursorX < SCREEN_WIDTH - 2) cursorX += 2; // Move by 2 pixels
+
+    if (yVal < 1000 && cursorY > 0) cursorY -= 2; // Move by 2 pixels
+
+    if (yVal > 3000 && cursorY < SCREEN_HEIGHT - 2) cursorY += 2; // Move by 2 pixels
+
+
+    // Ensure cursor stays within bounds after movement
+
+    cursorX = max(0, min(cursorX, SCREEN_WIDTH - 2));
+
+    cursorY = max(0, min(cursorY, SCREEN_HEIGHT - 2));
+
+
+    // --- Joystick button logic ---
+
+    if (btn) {
+
+      if (pressStart == 0) pressStart = millis();
+
+
+      // If holding > 800ms → erase 2x2 pixel block under cursor
+
+      if (millis() - pressStart > 800) {
+
+        display.fillRect(cursorX, cursorY, 2, 2, SSD1306_BLACK); // Erase 2x2 block
+
+        display.display();
+
+      }
+
+    } else {
+
+      if (pressStart != 0) {
+
+        // Short press toggles draw mode
+
+        if (millis() - pressStart < 800) {
+
+          penDown = !penDown;    // toggle pen
+
+        }
+
+        pressStart = 0;
+
+      }
+
+    }
+
+
+    // If pen is down → draw while moving (2x2 pixel block)
+
+    if (penDown) {
+
+      display.fillRect(cursorX, cursorY, 2, 2, SSD1306_WHITE); // Draw 2x2 block
+
+    }
+
+
+    // Draw blinking cursor without erasing pixels (adjust for 2x2 "pixel")
+
+    // This will draw a 4x4 inverse rectangle around the 2x2 drawing area
+
+    display.drawRect(cursorX - 1, cursorY - 1, 4, 4, SSD1306_INVERSE);
+
+    display.display();
+
+    delay(100);
+
+    display.drawRect(cursorX - 1, cursorY - 1, 4, 4, SSD1306_INVERSE);
+
+    display.display();
+
+
+    delay(30);
+
+  }
+
+}
+
+// UNIT CONVETOR
+
+
+// =============== SMARTPHONE STYLE DISTANCE CONVERTER ===============
+// ===================================================================
+// ==================== NEW UNIT CONVERTER APP =======================
+// ===================================================================
+// This new version adds a menu to select the conversion type and
+// includes Temperature and Data converters.
+// ===================================================================
+
+
+// Forward declaration for the generic keypad function (assumed to exist elsewhere in your code) 
+// ===================================================================
+// ==================== NEW UNIT CONVERTER APP (FIXED) ===============
+// ===================================================================
+// This version includes the required openKeypad function to resolve
+// compilation errors. It features a main menu for Distance, 
+// Temperature, and Data conversions.
+// ===================================================================
+
+
+// --- Virtual keypad function (reused from your other apps) ---
+// This function provides the UI for number input.
+String openKeypad(String current) {
+  const char keys[4][4] = {
+    {'7','8','9',' '},
+    {'4','5','6',' '},
+    {'1','2','3',' '},
+    {'0','.','C','<'}
+  };
+  int row=0, col=0;
+  unsigned long ts=0;
+  String input=current;
+
+  while (!backPressed()) {
+    if (joyMovedLeft(ts))  col = (col + 3) % 4;
+    if (joyMovedRight(ts)) col = (col + 1) % 4;
+    if (joyMovedUp(ts))    row = (row + 3) % 4;
+    if (joyMovedDown(ts))  row = (row + 1) % 4;
+
+    if (joyPressed()) {
+      waitRelease(JOY_BTN);
+      char key = keys[row][col];
+      if (key >= '0' && key <= '9') {
+        if (input=="0") input=String(key);
+        else input+=key;
+      }
+      else if (key=='.' && input.indexOf('.')==-1) input+=".";
+      else if (key=='<') {
+        if (input.length()>0) input.remove(input.length()-1);
+        if (input=="") input="0";
+      }
+      else if (key=='C') input="0";
+    }
+
+    // Draw keypad
+    display.clearDisplay();
+    display.setCursor(0,0); display.println("Enter Value");
+    display.setCursor(0,12); display.println(input);
+
+    for (int r=0;r<4;r++){
+      for(int c=0;c<4;c++){
+        if(keys[r][c]==' ') continue;
+        int x=96+c*8, y=24+r*10;
+        bool sel=(r==row && c==col);
+        if(sel){ display.fillRect(x-2,y-1,12,10,SSD1306_WHITE); display.setTextColor(SSD1306_BLACK);}
+        else display.setTextColor(SSD1306_WHITE);
+        display.setCursor(x,y); display.print(keys[r][c]);
+      }
+    }
+    display.display();
+    delay(50);
+  }
+  waitRelease(BACK_BTN);
+  return input;
+}
+
+
+// --- Conversion Logic for DISTANCE ---
+// Base unit is Meter.
+float convertDistToBase(float val, int unit) {
+  if (unit==0) return val;            // Meter
+  if (unit==1) return val*1000.0;     // Km
+  if (unit==2) return val/100.0;      // Cm
+  if (unit==3) return val*0.0254;     // Inch
+  if (unit==4) return val*0.3048;     // Foot
+  return val;
+}
+
+float convertDistFromBase(float val, int unit) {
+  if (unit==0) return val;            // Meter
+  if (unit==1) return val/1000.0;     // Km
+  if (unit==2) return val*100.0;      // Cm
+  if (unit==3) return val/0.0254;     // Inch
+  if (unit==4) return val/0.3048;     // Foot
+  return val;
+}
+
+
+// --- Conversion Logic for TEMPERATURE ---
+// The base unit for conversion is Celsius.
+float convertTempToBase(float val, int unit) {
+  if (unit==0) return val;                     // From Celsius
+  if (unit==1) return (val - 32.0) * 5.0 / 9.0; // From Fahrenheit
+  if (unit==2) return val - 273.15;             // From Kelvin
+  return val;
+}
+
+float convertTempFromBase(float val, int unit) {
+  if (unit==0) return val;                      // To Celsius
+  if (unit==1) return (val * 9.0 / 5.0) + 32.0;  // To Fahrenheit
+  if (unit==2) return val + 273.15;              // To Kelvin
+  return val;
+}
+
+
+// --- Conversion Logic for DATA ---
+// The base unit for conversion is Bytes. Uses 1024 factor.
+float convertDataBase(float val, int unit) {
+  if (unit==0) return val; // Bytes
+  if (unit==1) return val * 1024.0; // KB
+  if (unit==2) return val * 1024.0 * 1024.0; // MB
+  if (unit==3) return val * 1024.0 * 1024.0 * 1024.0; // GB
+  if (unit==4) return val * 1024.0 * 1024.0 * 1024.0 * 1024.0; // TB
+  return val;
+}
+
+float convertDataFromBase(float val, int unit) {
+  if (unit==0) return val; // Bytes
+  if (unit==1) return val / 1024.0; // KB
+  if (unit==2) return val / (1024.0 * 1024.0); // MB
+  if (unit==3) return val / (1024.0 * 1024.0 * 1024.0); // GB
+  if (unit==4) return val / (1024.0 * 1024.0 * 1024.0 * 1024.0); // TB
+  return val;
+}
+
+
+// --- Generic Converter UI Function ---
+// This function handles the UI for any type of conversion.
+void runSpecificConverter(const char* title, const char** units, int totalUnits, float (*toBase)(float, int), float (*fromBase)(float, int)) {
+  int fromIndex = 0;
+  int toIndex = 1;
+  String input = "1"; // Start with a default value of 1
+  unsigned long gateTs = 0;
+  int cursorPos = 0; // 0=From, 1=To, 2=Value
+
+  while (!backPressed()) {
+    // Navigation
+    if (joyMovedUp(gateTs))    cursorPos = (cursorPos + 2) % 3;
+    if (joyMovedDown(gateTs))  cursorPos = (cursorPos + 1) % 3;
+
+    if (joyMovedLeft(gateTs)) {
+      if (cursorPos == 0) fromIndex = (fromIndex - 1 + totalUnits) % totalUnits;
+      if (cursorPos == 1) toIndex   = (toIndex - 1 + totalUnits) % totalUnits;
+    }
+    if (joyMovedRight(gateTs)) {
+      if (cursorPos == 0) fromIndex = (fromIndex + 1) % totalUnits;
+      if (cursorPos == 1) toIndex   = (toIndex + 1) % totalUnits;
+    }
+
+    // Enter number
+    if (joyPressed() && cursorPos == 2) {
+      waitRelease(JOY_BTN);
+      input = openKeypad(input);
+    }
+
+    // Convert value
+    float value = input.toFloat();
+    float baseValue = toBase(value, fromIndex);
+    float result = fromBase(baseValue, toIndex);
+
+    // Draw UI
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setCursor(0, 0); 
+    display.println(title);
+    display.drawFastHLine(0, 8, 128, SSD1306_WHITE);
+
+    display.setCursor(0, 14);
+    if (cursorPos == 0) display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
+    else display.setTextColor(SSD1306_WHITE);
+    display.print("From: "); display.println(units[fromIndex]);
+
+    display.setCursor(0, 28);
+    if (cursorPos == 1) display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
+    else display.setTextColor(SSD1306_WHITE);
+    display.print("To:   "); display.println(units[toIndex]);
+
+    display.setCursor(0, 42);
+    if (cursorPos == 2) display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
+    else display.setTextColor(SSD1306_WHITE);
+    display.print("Value: "); display.println(input);
+
+    display.setTextColor(SSD1306_WHITE);
+    display.setCursor(0, 56);
+    display.print("= "); 
+    if (result > 999999 || (result < 0.001 && result != 0)) {
+        display.print(result, 4); 
+    } else {
+        display.print(result, 3);
+    }
+    display.print(" "); display.println(units[toIndex]);
+
+    display.display();
+    delay(50);
+  }
+  waitRelease(BACK_BTN);
+}
+
+
+// --- Main Unit Converter App Function ---
+// This is the new entry point for the "Unit Converter" menu item.
+void runUnitConverter() {
+  const char* categories[] = {"Distance", "Temperature", "Data"};
+  int totalCategories = 3;
+  int selection = 0;
+  unsigned long gateTs = 0;
+
+  while (true) {
+    if (backPressed()) {
+      waitRelease(BACK_BTN);
+      return; 
+    }
+    
+    if (joyPressed()) {
+      waitRelease(JOY_BTN);
+      break; 
+    }
+
+    if (joyMovedUp(gateTs))   selection = (selection - 1 + totalCategories) % totalCategories;
+    if (joyMovedDown(gateTs)) selection = (selection + 1) % totalCategories;
+
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setCursor(0, 0);
+    display.println("Choose Converter");
+    display.drawFastHLine(0, 10, 128, SSD1306_WHITE);
+
+    for (int i = 0; i < totalCategories; i++) {
+      display.setCursor(10, 18 + i * 12);
+      if (i == selection) {
+        display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
+      } else {
+        display.setTextColor(SSD1306_WHITE);
+      }
+      display.print("> ");
+      display.println(categories[i]);
+    }
+    display.setTextColor(SSD1306_WHITE);
+    display.display();
+    delay(50);
+  }
+
+  switch (selection) {
+    case 0: {
+      const char* units[] = {"Meter", "Km", "Cm", "Inch", "Foot"};
+      runSpecificConverter("Distance Conv.", units, 5, convertDistToBase, convertDistFromBase);
+      break;
+    }
+    case 1: {
+      const char* units[] = {"Celsius", "Fahrenheit", "Kelvin"};
+      runSpecificConverter("Temp. Conv.", units, 3, convertTempToBase, convertTempFromBase);
+      break;
+    }
+    case 2: {
+      const char* units[] = {"Byte", "KB", "MB", "GB", "TB"};
+      runSpecificConverter("Data Conv.", units, 5, convertDataBase, convertDataFromBase);
+      break;
+    }
+  }
+}
+
+// ==================== PERCENT CALCULATOR APP ====================
+// This app calculates discounts and taxes based on user input.
+// It features a menu to select the calculation type and uses a virtual
+// keypad for entering numbers.
+void runPercentCalculator() {
+  int mode = 0; // 0: menu, 1: discount, 2: tax
+  int selection = 0; // 0: discount, 1: tax in menu
+  unsigned long gateTs = 0;
+
+  // --- Main Menu for Percent Calculator ---
+  // This loop displays the initial menu to choose between the two calculator types.
+  while (mode == 0 && !backPressed()) {
+    if (joyMovedUp(gateTs)) selection = 0;
+    if (joyMovedDown(gateTs)) selection = 1;
+
+    if (joyPressed()) {
+      waitRelease(JOY_BTN);
+      mode = selection + 1; // Set mode to 1 for discount, 2 for tax
+      break;
+    }
+
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setTextColor(SSD1306_WHITE);
+    display.setCursor(0, 0);
+    display.println("Percent Calculator");
+    display.drawFastHLine(0, 10, 128, SSD1306_WHITE);
+
+    // Draw Discount option, highlighting if selected
+    display.setCursor(10, 24);
+    if (selection == 0) display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
+    else display.setTextColor(SSD1306_WHITE);
+    display.print("Discount Calculator");
+
+    // Draw Tax option, highlighting if selected
+    display.setCursor(10, 40);
+    if (selection == 1) display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
+    else display.setTextColor(SSD1306_WHITE);
+    display.print("Tax Calculator");
+    
+    display.setTextColor(SSD1306_WHITE); // Reset text color
+    display.display();
+    delay(50);
+  }
+
+  // If the user pressed BACK in the menu, exit the app
+  if (backPressed() || mode == 0) {
+      if(backPressed()) waitRelease(BACK_BTN);
+      return;
+  }
+  
+  // --- Actual Calculator Logic ---
+  String originalPriceStr = "100";
+  String percentStr = "10";
+  int cursorPos = 0; // 0: price field, 1: percent field, 2: calculate button
+  bool showResult = false;
+  float finalPrice = 0, amount = 0;
+
+  // Main loop for the calculator interface
+  while(!backPressed()) {
+    // Handle input when not showing the result
+    if (!showResult) {
+        if (joyMovedUp(gateTs)) cursorPos = (cursorPos + 2) % 3; // Cycle up
+        if (joyMovedDown(gateTs)) cursorPos = (cursorPos + 1) % 3; // Cycle down
+        
+        if (joyPressed()) {
+            waitRelease(JOY_BTN);
+            if (cursorPos == 0) { // Edit original price
+                originalPriceStr = openKeypad(originalPriceStr);
+            } else if (cursorPos == 1) { // Edit percentage
+                percentStr = openKeypad(percentStr);
+            } else { // Perform calculation
+                float originalPrice = originalPriceStr.toFloat();
+                float percent = percentStr.toFloat();
+
+                if (mode == 1) { // Discount calculation
+                    amount = originalPrice * (percent / 100.0f);
+                    finalPrice = originalPrice - amount;
+                } else { // Tax calculation
+                    amount = originalPrice * (percent / 100.0f);
+                    finalPrice = originalPrice + amount;
+                }
+                showResult = true; // Switch to result screen
+            }
+        }
+    } else { // On the result screen
+        if (joyPressed()) {
+            waitRelease(JOY_BTN);
+            showResult = false; // Go back to the input screen
+        }
+    }
+
+    // --- Drawing the UI ---
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setTextColor(SSD1306_WHITE);
+    display.setCursor(0, 0);
+    display.println(mode == 1 ? "Discount Calculator" : "Tax Calculator");
+    display.drawFastHLine(0, 10, 128, SSD1306_WHITE);
+
+    if (showResult) {
+        // Display the final calculated price and saved/tax amount
+        display.setCursor(0, 16);
+        display.print("Final Price: ");
+        display.setTextSize(2);
+        display.setCursor(0, 26);
+        display.print(finalPrice, 2);
+        display.setTextSize(1);
+        
+        display.setCursor(0, 44);
+        display.print(mode == 1 ? "You Saved: " : "Tax Amount: ");
+        display.print(amount, 2);
+
+        display.setCursor(20, 56);
+        display.print("Press to go back");
+    } else {
+        // Display the input fields and calculate button
+        // Original Price field
+        display.setCursor(0, 16);
+        if(cursorPos == 0) display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
+        display.print("Original Price: ");
+        display.print(originalPriceStr);
+        display.setTextColor(SSD1306_WHITE);
+
+        // Percentage field
+        display.setCursor(0, 28);
+        if(cursorPos == 1) display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
+        display.print(mode == 1 ? "Discount %: " : "Tax %: ");
+        display.print(percentStr);
+        display.setTextColor(SSD1306_WHITE);
+        
+        // Calculate button
+        display.setCursor(30, 44);
+        if(cursorPos == 2) display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
+        display.print("[ CALCULATE ]");
+        display.setTextColor(SSD1306_WHITE);
+    }
+    
+    display.display();
+    delay(50);
+  }
+  
+  waitRelease(BACK_BTN);
+}
+
+
+// BMI
+
+
+void runBMI() {
+
+  int weight = 60;   // default weight (kg)
+
+  int height = 170;  // default height (cm)
+
+  bool onWeight = true; // true = adjusting weight, false = height
+
+  bool showResult = false;
+
+  float bmi = 0.0;
+
+
+  unsigned long lastMove = 0; 
+
+  const int HOLD_DELAY = 80; // ms between scroll steps
+
+
+  while (!backPressed()) {
+
+    unsigned long now = millis();
+
+
+    // --- Switch between weight/height with Left/Right ---
+
+    if (!showResult) {
+
+      if (joyMovedLeft(lastMove) || joyMovedRight(lastMove)) {
+
+        onWeight = !onWeight;
+
+      }
+
+    }
+
+
+    // --- Scroll Up/Down ---
+
+    int yVal = joyY();
+
+    if (!showResult && now - lastMove > HOLD_DELAY) {
+
+      if (yVal < (JOY_CENTER - JOY_DEADZONE)) { // scroll up
+
+        if (onWeight && weight < 200) weight++;
+
+        else if (!onWeight && height < 200) height++;
+
+        lastMove = now;
+
+      }
+
+      else if (yVal > (JOY_CENTER + JOY_DEADZONE)) { // scroll down
+
+        if (onWeight && weight > 1) weight--;
+
+        else if (!onWeight && height > 1) height--;
+
+        lastMove = now;
+
+      }
+
+    }
+
+
+    // --- Press joystick button to calculate ---
+
+    if (joyPressed()) {
+
+      waitRelease(JOY_BTN);
+
+      float h_m = height / 100.0;
+
+      bmi = weight / (h_m * h_m);
+
+      showResult = true;
+
+    }
+
+
+    // --- Draw screen ---
+
+    display.clearDisplay();
+
+    display.setTextSize(1);
+
+    display.setTextColor(SSD1306_WHITE);
+
+    display.setCursor(0, 0);
+
+    display.println("BMI Calculator");
+
+    display.drawFastHLine(0, 8, 128, SSD1306_WHITE);
+
+
+    if (!showResult) {
+
+      display.setCursor(0, 16);
+
+      if (onWeight) display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
+
+      display.print("Weight: ");
+
+      display.print(weight);
+
+      display.println(" kg");
+
+      display.setTextColor(SSD1306_WHITE);
+
+
+      display.setCursor(0, 28);
+
+      if (!onWeight) display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
+
+      display.print("Height: ");
+
+      display.print(height);
+
+      display.println(" cm");
+
+      display.setTextColor(SSD1306_WHITE);
+
+
+      display.setCursor(0, 44);
+
+      display.println("Press = Calculate");
+
+    } else {
+
+      display.setTextSize(2);
+
+      display.setCursor(0, 16);
+
+      display.print("BMI: ");
+
+      display.print(bmi, 1);
+
+
+      display.setTextSize(1);
+
+      display.setCursor(0, 40);
+
+      if (bmi < 18.5) display.print("Underweight");
+
+      else if (bmi < 25) display.print("Normal");
+
+      else if (bmi < 30) display.print("Overweight");
+
+      else display.print("Obese");
+
+
+      display.setCursor(0, 56);
+
+      display.print("Press = Recalc");
+
+    }
+
+
+    display.display();
+
+    delay(20);
+
+  }
+
+  waitRelease(BACK_BTN);
+
+}
+
+
+// timer
+
+
+// ==================== TIMER APP ====================
+
+void runTimer() {
+
+  const char* options[] = {"10 sec", "5 min", "10 min", "30 min"};
+
+  unsigned long durations[] = {
+
+    10 * 1000UL,       // 10 seconds
+
+    5 * 60 * 1000UL,   // 5 minutes
+
+    10 * 60 * 1000UL,  // 10 minutes
+
+    30 * 60 * 1000UL   // 30 minutes
+
+  };
+
+  int totalOptions = 4;
+
+  int selection = 0;
+
+  unsigned long gateTs = 0;
+
+
+  // --- Select Duration ---
+
+  while (!backPressed()) {
+
+    if (joyMovedUp(gateTs)) {
+
+      selection = (selection - 1 + totalOptions) % totalOptions;
+
+    }
+
+    if (joyMovedDown(gateTs)) {
+
+      selection = (selection + 1) % totalOptions;
+
+    }
+
+    if (joyPressed()) {
+
+      waitRelease(JOY_BTN);
+
+      break; // Start timer
+
+    }
+
+
+    display.clearDisplay();
+
+    display.setTextSize(1);
+
+    display.setCursor(0, 0);
+
+    display.println("Select Timer");
+
+    display.drawFastHLine(0, 10, 128, SSD1306_WHITE);
+
+
+    for (int i = 0; i < totalOptions; i++) {
+
+      display.setCursor(0, 16 + i * 10);
+
+      if (i == selection) {
+
+        display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
+
+      } else {
+
+        display.setTextColor(SSD1306_WHITE);
+
+      }
+
+      display.println(options[i]);
+
+    }
+
+
+    display.setTextColor(SSD1306_WHITE);
+
+    display.display();
+
+    delay(50);
+
+  }
+
+  if (backPressed()) { waitRelease(BACK_BTN); return; }
+
+
+  // --- Countdown ---
+
+  unsigned long duration = durations[selection];
+
+  unsigned long endTime = millis() + duration;
+
+
+  while (!backPressed()) {
+
+    unsigned long remaining = (endTime > millis()) ? (endTime - millis()) : 0;
+
+
+    display.clearDisplay();
+
+    display.setTextSize(1);
+
+    display.setCursor(0, 0);
+
+    display.println("Timer Running");
+
+
+    // Convert ms -> min:sec
+
+    unsigned long totalSec = remaining / 1000;
+
+    unsigned int mins = totalSec / 60;
+
+    unsigned int secs = totalSec % 60;
+
+
+    display.setTextSize(3);
+
+    display.setCursor(10, 28);
+
+    if (mins < 10) display.print("0");
+
+    display.print(mins);
+
+    display.print(":");
+
+    if (secs < 10) display.print("0");
+
+    display.print(secs);
+
+
+    display.display();
+
+
+    if (remaining == 0) break;
+
+    delay(200);
+
+  }
+
+
+  // --- Buzzer rings continuously ---
+
+  pinMode(BUZZER_PIN, OUTPUT);
+
+  while (!backPressed()) {
+
+    digitalWrite(BUZZER_PIN, HIGH);
+
+    delay(200);
+
+    digitalWrite(BUZZER_PIN, LOW);
+
+    delay(200);
+
+  }
+
+  digitalWrite(BUZZER_PIN, LOW);
+
+  waitRelease(BACK_BTN);
+
+    }
+
+
+//
+
+// -------------------------------------------------------------------------------------------------------------------------------
+
+// --------
+
+
+  
+
+    // Player spaceship (10x10) → stored as 2 bytes per row
+const unsigned char PROGMEM playerShip[] = {
+
+  0b00000110, 0b00,
+
+  0b00001111, 0b00,
+
+  0b00011111, 0b10,
+
+  0b00111111, 0b11,
+
+  0b01111111, 0b11,
+
+  0b11111111, 0b11,
+
+  0b01111111, 0b11,
+
+  0b00111111, 0b11,
+
+  0b00011111, 0b10,
+
+  0b00001111, 0b00
+
+};
+
+
+
+// Enemy UFO (8x6)
+
+
+ const unsigned char PROGMEM enemyShip[] = {
+
+  0b00111100,
+
+  0b01111110,
+
+  0b11111111,
+
+  0b11011011,
+
+  0b11111111,
+
+  0b01111110
+
+};
+
+
+// ================== GAME VARIABLES ==================
+
+int playerY = SCREEN_HEIGHT / 2;
+
+int bulletX = -1, bulletY = -1;
+
+bool bulletActive = false;
+
+
+#define NUM_ENEMIES 5
+
+int enemyX[NUM_ENEMIES];
+
+int enemyY[NUM_ENEMIES];
+
+bool enemyActive[NUM_ENEMIES];
+
+int enemyShakeDir[NUM_ENEMIES]; // for shaking effect
+
+
+int score = 0;
+
+int lives = 3;
+
+
+// Stars
+
+#define NUM_STARS 20
+
+int starX[NUM_STARS];
+
+int starY[NUM_STARS];
+
+
+// ================== HELPER FUNCTIONS ==================
+
+
+
+
+// Game Over screen
+
+//=================================================================================
+//=========================== SPACE SHOOTER APP ===================================
+//=================================================================================
+// This is the updated Space Shooter game.
+// Replace the old runSpaceShooter() function in your main file with this entire block.
+
+void runSpaceShooter() {
+
+    // --- ASSETS & CONSTANTS ---
+
+    // Spaceship bitmap (8x7 pixels)
+    const unsigned char spaceship_bmp[] PROGMEM = {
+      0b00011000,
+      0b00111100,
+      0b01111110,
+      0b11111111,
+      0b01111110,
+      0b00100100,
+      0b01000010
+    };
+
+    #define MAX_BULLETS 5
+    #define NUM_ENEMIES 5
+    #define NUM_STARS 30
+
+    // --- GAME DATA STRUCTURES ---
+
+    struct Star {
+      int x, y;
+      int speed;
+    };
+
+    struct Bullet {
+      int x, y;
+      bool active;
+    };
+
+    struct Enemy {
+      int x, y;
+      int size;
+      bool alive;
+    };
+
+
+    // --- GAME STATE VARIABLES ---
+    Star stars[NUM_STARS];
+    Bullet bullets[MAX_BULLETS];
+    Enemy enemies[NUM_ENEMIES];
+
+    int playerX;
+    int score;
+    int health;
+    bool gameOver;
+    unsigned long lastFireTime;
+    int enemySpeed;
+    
+    // --- HELPER FUNCTION TO RESET GAME STATE ---
+    auto resetGame = [&]() {
+        playerX = SCREEN_WIDTH / 2;
+        score = 0;
+        health = 10;
+        gameOver = false;
+        lastFireTime = 0;
+        enemySpeed = 1;
+
+        for (int i = 0; i < MAX_BULLETS; i++) bullets[i].active = false;
+        for (int i = 0; i < NUM_ENEMIES; i++) {
+            enemies[i] = {random(0, SCREEN_WIDTH - 10), random(-80, -10), random(6, 12), true};
+        }
+        for (int i = 0; i < NUM_STARS; i++) {
+            stars[i] = {random(0, SCREEN_WIDTH), random(0, SCREEN_HEIGHT), random(1, 3)};
+        }
+    };
+
+    // --- INITIAL START SCREEN ---
+    display.clearDisplay();
+    display.setTextSize(2);
+    display.setTextColor(SSD1306_WHITE);
+    display.setCursor(5, 10);
+    display.print("SPACE");
+    display.setCursor(5, 30);
+    display.print("SHOOTER");
+    
+    display.setTextSize(1);
+    display.setCursor(15, 50);
+    display.print("Press JOY to Start");
+    display.display();
+
+    while(true){
+        if(joyPressed()){ waitRelease(JOY_BTN); break; }
+        if(backPressed()){ waitRelease(BACK_BTN); return; }
+        delay(10);
+    }
+    
+    resetGame(); // Initialize the game for the first time
+
+    // ================== MAIN GAME LOOP ==================
+    while (!backPressed()) {
+        
+        // --- GAME OVER LOGIC ---
+        if (gameOver || health <= 0) {
+            display.clearDisplay();
+            display.setTextSize(2);
+            display.setCursor(15, 15);
+            display.print("GAME OVER");
+            display.setTextSize(1);
+            display.setCursor(30, 35);
+            display.print("Score: ");
+            display.print(score);
+            display.setCursor(15, 50);
+            display.print("Press JOY to Retry");
+            display.display();
+
+            while(true){
+                if (backPressed()) { waitRelease(BACK_BTN); return; }
+                if (joyPressed()) { waitRelease(JOY_BTN); resetGame(); break; }
+                delay(10);
+            }
+        }
+
+        // --- INPUT HANDLING ---
+        int xVal = joyX();
+        if (xVal < (JOY_CENTER - JOY_DEADZONE) && playerX > 5) playerX -= 2;
+        if (xVal > (JOY_CENTER + JOY_DEADZONE) && playerX < SCREEN_WIDTH - 5) playerX += 2;
+        if (joyPressed() && millis() - lastFireTime > 200) { // Fire bullet with cooldown
+            for (int i = 0; i < MAX_BULLETS; i++) {
+                if (!bullets[i].active) {
+                    bullets[i] = {playerX, SCREEN_HEIGHT - 16, true};
+                    lastFireTime = millis();
+                    break;
+                }
+            }
+        }
+
+        // --- UPDATE GAME STATE ---
+
+        // Update Stars
+        for (int i = 0; i < NUM_STARS; i++) {
+            stars[i].y += stars[i].speed;
+            if (stars[i].y > SCREEN_HEIGHT) {
+                stars[i].x = random(0, SCREEN_WIDTH);
+                stars[i].y = 0;
+            }
+        }
+
+        // Update Bullets
+        for (int i = 0; i < MAX_BULLETS; i++) {
+            if (bullets[i].active) {
+                bullets[i].y -= 5;
+                if (bullets[i].y < 0) bullets[i].active = false;
+            }
+        }
+
+        // Update Enemies
+        for (int i = 0; i < NUM_ENEMIES; i++) {
+            if (enemies[i].alive) {
+                enemies[i].y += enemySpeed;
+                // If enemy reaches bottom, lose health and reset enemy
+                if (enemies[i].y > SCREEN_HEIGHT) {
+                    health--;
+                    enemies[i] = {random(0, SCREEN_WIDTH - 10), random(-80, -10), random(6, 12), true};
+                }
+                // Check direct collision with player
+                if (playerX < enemies[i].x + enemies[i].size &&
+                    playerX + 8 > enemies[i].x &&
+                    (SCREEN_HEIGHT - 16) < enemies[i].y + enemies[i].size &&
+                    (SCREEN_HEIGHT - 16) + 7 > enemies[i].y)
+                {
+                    gameOver = true;
+                }
+            }
+        }
+
+        // Check Bullet-Enemy Collisions
+        for (int i = 0; i < MAX_BULLETS; i++) {
+            if (bullets[i].active) {
+                for (int j = 0; j < NUM_ENEMIES; j++) {
+                    int s = enemies[j].size;
+                    if (enemies[j].alive && 
+                        bullets[i].x > enemies[j].x && bullets[i].x < enemies[j].x + s && 
+                        bullets[i].y < enemies[j].y + s && bullets[i].y > enemies[j].y) {
+                        
+                        bullets[i].active = false;
+                        score += 5;
+                        enemies[j] = {random(0, SCREEN_WIDTH - 10), random(-80, -10), random(6, 12), true};
+                        
+                        // Increase difficulty every 50 points
+                        if (score > 0 && score % 50 == 0 && enemySpeed < 5) enemySpeed++;
+                        break; // Bullet can only hit one enemy
+                    }
+                }
+            }
+        }
+
+        // --- DRAWING ---
+        display.clearDisplay();
+
+        // Draw Stars
+        for (int i = 0; i < NUM_STARS; i++) {
+            display.drawPixel(stars[i].x, stars[i].y, SSD1306_WHITE);
+        }
+
+        // Draw Player
+        display.drawBitmap(playerX - 4, SCREEN_HEIGHT - 16, spaceship_bmp, 8, 7, SSD1306_WHITE);
+
+        // Draw Bullets
+        for (int i = 0; i < MAX_BULLETS; i++) {
+            if (bullets[i].active) {
+                display.drawFastVLine(bullets[i].x, bullets[i].y, 4, SSD1306_WHITE);
+            }
+        }
+
+        // Draw Enemies (simple circles with crosshairs)
+        for (int i = 0; i < NUM_ENEMIES; i++) {
+            if (enemies[i].alive) {
+                int x = enemies[i].x;
+                int y = enemies[i].y;
+                int s = enemies[i].size;
+                display.drawCircle(x + s / 2, y + s / 2, s / 2, SSD1306_WHITE);
+                display.drawLine(x, y + s / 2, x + s, y + s / 2, SSD1306_WHITE);
+                display.drawLine(x + s / 2, y, x + s / 2, y + s, SSD1306_WHITE);
+            }
+        }
+
+        // Draw HUD (Score and Health)
+        display.setTextSize(1);
+        display.setCursor(0, 0);
+        display.print("S:"); display.print(score);
+        display.setCursor(SCREEN_WIDTH - 40, 0);
+        display.print("HP:"); display.print(health);
+
+        display.display();
+        delay(30); // Control game speed
+    }
+
+    waitRelease(BACK_BTN); // Wait for the back button to be released before exiting
+}
+// ==================== FLAPPY BIRD APP ====================
+// Flappy Bird (8x8 pixels) - Frame 1 (wings middle)
+// ==================== FLAPPY BIRD APP ====================
+// This code is designed to be integrated into the ESP32 Pocket Computer project.
+// It uses the project's existing display and input functions.
+
+// Bird graphics (8x8 pixels), stored in PROGMEM to save RAM
+// Frame 1: Wings middle
+const unsigned char PROGMEM bird_frame1[] = {
+  0b00111100,
+  0b01111110,
+  0b11111000,
+  0b11111111,
+  0b11111100,
+  0b01100110,
+  0b00100100,
+  0b00000000
+};
+
+// Frame 2: Wings down (for animation)
+const unsigned char PROGMEM bird_frame2[] = {
+  0b00000000,
+  0b01111110,
+  0b11100011,
+  0b11111111,
+  0b01111111,
+  0b00111110,
+  0b00011100,
+  0b00011100
+};
+
+// Main function for the Flappy Bird game app// ==================== FLAPPY BIRD APP (BUGFIXED & IMPROVED RANDOMNESS) ====================
+// ==================== FLAPPY BIRD APP (CLOSER TUNNELS) ====================
+void runFlappyBird() {
+  // --- Game Constants ---
+  #define BIRD_X 24         // Bird's constant horizontal position
+  #define BIRD_WIDTH 8
+  #define BIRD_HEIGHT 8
+  #define GRAVITY 0.20
+  #define FLAP_STRENGTH -2.4
+  #define PIPE_WIDTH 12     // Width of the obstacle pipes
+  #define PIPE_GAP 34
+  #define PIPE_SPEED 0.8f
+  // **CHANGE**: Reduced from 85 to 65 to make pipes appear closer together.
+  #define PIPE_SPACING_BASE 65 
+
+  // --- Game State Variables ---
+  float birdY = SCREEN_HEIGHT / 2.0;
+  float birdV = 0;
+  int score = 0;
+  bool gameOver = false;
+  unsigned long animationTimer = 0;
+  bool frame1 = true;
+  bool canFlap = true; 
+
+  // --- Pipe Management ---
+  float pipeX[2];      // Horizontal position of the two pipes
+  int pipeGapY[2];     // Vertical position of the gap for each pipe
+
+  // Initialize the two pipes to start off-screen
+  pipeX[0] = SCREEN_WIDTH;
+  pipeGapY[0] = random(8, SCREEN_HEIGHT - PIPE_GAP - 8);
+  pipeX[1] = SCREEN_WIDTH + PIPE_SPACING_BASE;
+  pipeGapY[1] = random(8, SCREEN_HEIGHT - PIPE_GAP - 8);
+
+  // ================== MAIN GAME LOOP ==================
+  while (!gameOver) {
+    // --- 1. Handle Input ---
+    if (joyPressed()) {
+      if (canFlap) {
+        birdV = FLAP_STRENGTH;
+        canFlap = false;
+      }
+    } else {
+      canFlap = true;
+    }
+
+    if (backPressed()){
+        waitRelease(BACK_BTN);
+        return;
+    }
+
+    // --- 2. Update Game Logic ---
+    birdV += GRAVITY;
+    birdY += birdV;
+
+    for (int i = 0; i < 2; i++) {
+      pipeX[i] -= PIPE_SPEED;
+
+      // Score point when the front of the bird passes the back of the pipe
+      if ((int)(pipeX[i] + PIPE_WIDTH) == BIRD_X) {
+        score++;
+      }
+      
+      // When a pipe goes off-screen, reset its position
+      if (pipeX[i] < -PIPE_WIDTH) {
+        int otherPipe = (i == 0) ? 1 : 0;
+        // **CHANGE**: Reduced the random offset to keep spacing more consistent with the new closer base.
+        pipeX[i] = pipeX[otherPipe] + PIPE_SPACING_BASE + random(-10, 10);
+        pipeGapY[i] = random(8, SCREEN_HEIGHT - PIPE_GAP - 8);
+      }
+    }
+
+    // --- 3. Collision Detection ---
+    if (birdY < 0 || birdY + BIRD_HEIGHT > SCREEN_HEIGHT) {
+      gameOver = true;
+    }
+    for (int i = 0; i < 2; i++) {
+      if (BIRD_X + BIRD_WIDTH > pipeX[i] && BIRD_X < pipeX[i] + PIPE_WIDTH) {
+        if (birdY < pipeGapY[i] || birdY + BIRD_HEIGHT > pipeGapY[i] + PIPE_GAP) {
+          gameOver = true;
+        }
+      }
+    }
+
+    // --- 4. Drawing ---
+    display.clearDisplay();
+
+    // Animate the bird's wings
+    if (millis() - animationTimer > 150) {
+      frame1 = !frame1;
+      animationTimer = millis();
+    }
+    display.drawBitmap(BIRD_X, (int)birdY, frame1 ? bird_frame1 : bird_frame2, BIRD_WIDTH, BIRD_HEIGHT, SSD1306_WHITE);
+
+    // Draw both pipes
+    for (int i = 0; i < 2; i++) {
+      display.fillRect((int)pipeX[i], 0, PIPE_WIDTH, pipeGapY[i], SSD1306_WHITE);
+      display.fillRect((int)pipeX[i], pipeGapY[i] + PIPE_GAP, PIPE_WIDTH, SCREEN_HEIGHT - (pipeGapY[i] + PIPE_GAP), SSD1306_WHITE);
+    }
+
+    // Draw the score
+    display.setTextSize(1);
+    display.setTextColor(SSD1306_WHITE);
+    display.setCursor(0, 0);
+    display.print("Score: ");
+    display.print(score);
+
+    display.display();
+    delay(10);
+  }
+
+  // ================== GAME OVER SCREEN ==================
+  display.clearDisplay();
+  display.setTextSize(2);
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(16, 14);
+  display.print(F("GAME OVER"));
+  display.setTextSize(1);
+  display.setCursor(22, 38);
+  display.print(F("Score: "));
+  display.print(score);
+  display.setCursor(10, 50);
+  display.print(F("Press BACK to exit"));
+  display.display();
+
+  while (!backPressed()) {
+    delay(10);
+  }
+  waitRelease(BACK_BTN);
+}
+// This function handles the logic for the scientific calculator,
+// allowing for power, square root, and decimal number calculations.
+// It uses the joystick for navigation and selection.
+
+// allowing for power, square root, and decimal number calculations.
+// It uses the joystick for navigation and selection.
+// ---
+void runSciCalculator() {
+  // Keypad layout for the scientific calculator
+  // Includes numbers 0-9, decimal point, power, and square root symbols.
+  // The first row is for the display and result.
+  const char keys[4][5] = {
+    {'1', '2', '3', '^', ' '},
+    {'4', '5', '6', '.', ' '},
+    {'7', '8', '9', 'V', '<'}, // V = Square Root, < = Backspace
+    {'0', 'C', '=', ' ', ' '}
+  };
+
+  int row = 0, col = 0; // Cursor position on the virtual keypad
+  unsigned long gateTs = 0; // Timestamp for joystick navigation debouncing
+  String currentInput = ""; // String to hold the current number being entered
+  String baseString = ""; // Stores the base number for the power calculation
+  String exponentString = ""; // Stores the exponent for the power calculation
+  bool calculatingPower = false; // Flag to indicate if we are entering the exponent
+  double result = 0.0; // The final calculated result
+  
+  // Flag to check if the result is currently displayed
+  bool showedResult = false; 
+
+  while (!backPressed()) { // Loop until the back button is pressed
+    // Handle joystick navigation for keypad cursor
+    if (joyMovedLeft(gateTs)) col = (col + 4) % 5;
+    if (joyMovedRight(gateTs)) col = (col + 1) % 5;
+    if (joyMovedUp(gateTs)) row = (row + 3) % 4;
+    if (joyMovedDown(gateTs)) row = (row + 1) % 4;
+
+    if (joyPressed()) { // If the joystick button is pressed
+      waitRelease(JOY_BTN); // Wait for the button to be released
+      char key = keys[row][col]; // Get the selected key
+
+      // Handle different key actions
+      if (key >= '0' && key <= '9') { // Digit keys
+        if (showedResult) {
+          currentInput = "";
+          baseString = "";
+          exponentString = "";
+          showedResult = false;
+        }
+        currentInput += key;
+      } else if (key == '.') { // Decimal point
+        if (showedResult) {
+          currentInput = "0.";
+          showedResult = false;
+        } else if (currentInput.indexOf('.') < 0) {
+          currentInput += '.';
+        }
+      } else if (key == '^') { // Power symbol
+        if (currentInput.length() > 0 && !calculatingPower) {
+          baseString = currentInput;
+          currentInput = "";
+          calculatingPower = true;
+        }
+      } else if (key == 'V') { // Square Root symbol
+        if (currentInput.length() > 0) {
+          double val = currentInput.toDouble();
+          if (val >= 0) {
+            result = sqrt(val);
+            currentInput = String(result, 4);
+            showedResult = true;
+          } else {
+            currentInput = "Error";
+            showedResult = true;
+          }
+        }
+      } else if (key == '=') { // Equals button
+        if (calculatingPower && currentInput.length() > 0) {
+          exponentString = currentInput;
+          double base = baseString.toDouble();
+          double exponent = exponentString.toDouble();
+          result = pow(base, exponent);
+          currentInput = String(result, 4);
+          calculatingPower = false;
+          showedResult = true;
+        }
+      } else if (key == '<') { // Backspace
+        if (currentInput.length() > 0) {
+          currentInput.remove(currentInput.length() - 1);
+        } else if (calculatingPower) {
+          currentInput = exponentString;
+          exponentString = "";
+          calculatingPower = false;
+        } else if (baseString.length() > 0) {
+          currentInput = baseString;
+          baseString = "";
+        }
+      } else if (key == 'C') { // Clear
+        currentInput = "";
+        baseString = "";
+        exponentString = "";
+        calculatingPower = false;
+        result = 0.0;
+        showedResult = false;
+      }
+    }
+
+    // Clear display for redraw
+    display.clearDisplay(); 
+
+    // Draw display area border
+    display.drawRect(0, 0, 128, 20, SSD1306_WHITE); 
+
+    display.setTextSize(1);
+    display.setTextColor(SSD1306_WHITE);
+    display.setCursor(2, 2);
+
+    // Display the current input string or the result
+    if (calculatingPower) {
+      display.print(baseString);
+      display.print("^");
+      display.setCursor(2, 12);
+      display.print(currentInput);
+    } else {
+      if (showedResult) {
+        display.print("Result: ");
+        display.print(currentInput);
+      } else {
+        display.print(currentInput);
+      }
+    }
+    
+    // Draw virtual keypad
+    display.setTextSize(1);
+    for (int r = 0; r < 4; r++) {
+      for (int c = 0; c < 5; c++) {
+        if (keys[r][c] == ' ') continue; // Skip empty key
+
+        int x = c * 25 + 2; // X position for key
+        int y = 22 + r * 10; // Y position for key
+        bool sel = (r == row && c == col); // Check if current key is selected
+
+        if (sel) {
+          display.fillRect(x, y, 23, 9, SSD1306_WHITE);
+          display.setTextColor(SSD1306_BLACK); // Highlight selected
+        } else {
+          display.setTextColor(SSD1306_WHITE); // Normal color
+        }
+
+        display.setCursor(x + 8, y + 1);
+        
+        // Use special characters for power and square root
+        if (keys[r][c] == 'V') {
+          display.print(F("SQRT"));
+        } else if (keys[r][c] == '^') {
+          display.print(F("PWR"));
+        } else if (keys[r][c] == '<') {
+          display.print(F("BS"));
+        } else {
+          display.print(keys[r][c]); // Print key text
+        }
+      }
+    }
+
+    display.display(); // Update display
+    delay(10); // Small delay
+  }
+
+  waitRelease(BACK_BTN);
+}
+
+// ===============================================================================================
+// =================================== ELEMENTS APP ==============================================
+// ===============================================================================================
+
+// Define a structure to hold element data
+struct Element {
+  const char* symbol;
+  const char* name;
+  int atomicNumber;
+  float massNumber;
+};
+
+// Data for the first 20 elements, stored in PROGMEM to save RAM
+const Element elements[20] PROGMEM = {
+  {"H", "Hydrogen", 1, 1.008}, {"He", "Helium", 2, 4.0026},
+  {"Li", "Lithium", 3, 6.94}, {"Be", "Beryllium", 4, 9.0122},
+  {"B", "Boron", 5, 10.81}, {"C", "Carbon", 6, 12.011},
+  {"N", "Nitrogen", 7, 14.007}, {"O", "Oxygen", 8, 15.999},
+  {"F", "Fluorine", 9, 18.998}, {"Ne", "Neon", 10, 20.180},
+  {"Na", "Sodium", 11, 22.990}, {"Mg", "Magnesium", 12, 24.305},
+  {"Al", "Aluminium", 13, 26.982}, {"Si", "Silicon", 14, 28.085},
+  {"P", "Phosphorus", 15, 30.974}, {"S", "Sulfur", 16, 32.06},
+  {"Cl", "Chlorine", 17, 35.45}, {"Ar", "Argon", 18, 39.948},
+  {"K", "Potassium", 19, 39.098}, {"Ca", "Calcium", 20, 40.078}
+};
+
+void runElements() {
+  int selected = 0;       // Index of the currently selected element
+  bool detailMode = false;  // false = grid view, true = detail view
+  unsigned long gateTs = 0; // Timestamp for joystick debouncing
+
+  while (true) {
+    // --- INPUT HANDLING ---
+    
+    // If in detail mode, pressing BACK or JOY_BTN returns to the grid
+    if (detailMode) {
+      if (backPressed() || joyPressed()) {
+        detailMode = false;
+        // Wait for the button to be released to prevent immediate re-entry
+        waitRelease(backPressed() ? BACK_BTN : JOY_BTN);
+      }
+    } 
+    // If in grid mode, handle navigation and selection
+    else {
+      // Exit the app if the back button is pressed from the grid view
+      if (backPressed()) {
+        break; 
+      }
+      
+      // Navigate the grid with the joystick
+      if (joyMovedLeft(gateTs)) { if (selected % 5 > 0) selected--; }
+      if (joyMovedRight(gateTs)) { if (selected % 5 < 4) selected++; }
+      if (joyMovedUp(gateTs)) { if (selected >= 5) selected -= 5; }
+      if (joyMovedDown(gateTs)) { if (selected < 15) selected += 5; }
+
+      // Pressing the joystick button enters detail mode
+      if (joyPressed()) {
+        detailMode = true;
+        waitRelease(JOY_BTN);
+      }
+    }
+
+    // --- DRAWING ---
+    display.clearDisplay();
+
+    if (detailMode) {
+      // Draw the detailed view for the selected element
+      display.setTextSize(1);
+      display.setTextColor(SSD1306_WHITE);
+      display.setCursor(0, 0);
+      display.print(elements[selected].symbol);
+      display.print(" - ");
+      display.println(elements[selected].name);
+      display.drawFastHLine(0, 10, 128, SSD1306_WHITE);
+      
+      display.setCursor(0, 16);
+      display.print("Atomic No: ");
+      display.println(elements[selected].atomicNumber);
+
+      display.setCursor(0, 28);
+      display.print("Mass No: ");
+      display.println(elements[selected].massNumber, 3);
+      
+      display.setCursor(0, 52);
+      display.print("Press BACK to return");
+
+    } else {
+      // Draw the 5x4 grid of element symbols
+      display.setTextSize(1);
+      display.setTextColor(SSD1306_WHITE);
+
+      int cols = 5;
+      int cellW = 24, cellH = 14;
+
+      for (int i = 0; i < 20; i++) {
+        int col = i % cols;
+        int row = i / cols;
+        int x = col * cellW + 4;
+        int y = row * cellH + 4;
+
+        // Highlight the selected element
+        if (i == selected) {
+          display.fillRect(x - 4, y - 4, cellW, cellH, SSD1306_WHITE);
+          display.setTextColor(SSD1306_BLACK);
+        } else {
+          display.setTextColor(SSD1306_WHITE);
+        }
+        
+        display.setCursor(x, y);
+        display.print(elements[i].symbol);
+      }
+    }
+    
+    display.display();
+    delay(50); // Small delay for refresh rate
+  }
+
+  waitRelease(BACK_BTN); // Wait for back button release before exiting
+}
+
+// --- Helper function to display "App Not Found" message ---
+
+
+// Wifi Scanner Application
+
+String getSignalStrengthStatus(long rssi) {
+
+    if (rssi >= -40) {
+
+        return "Excellent";
+
+    } else if (rssi >= -60) {
+
+        return "Good";
+
+    } else if (rssi >= -70) {
+
+        return "Fair";
+
+    } else {
+
+        return "Poor";
+
+    }
+
+}
+
+
+void runWifiScanner() {
+
+    display.clearDisplay();
+
+    display.setTextSize(1);
+
+    display.setTextColor(SSD1306_WHITE);
+
+    display.setCursor(0, 0);
+
+    display.println("Scanning for WiFi...");
+
+    display.display();
+
+    
+
+    // Set ESP32 to Wi-Fi station mode to scan networks.
+
+    WiFi.mode(WIFI_STA);
+
+    WiFi.disconnect(); // Disconnect from any previous networks
+
+    int n = WiFi.scanNetworks(); // Perform Wi-Fi scan, returns number of networks found
+
+
+    if (n == 0) { // If no networks found
+
+        display.clearDisplay();
+
+        display.println("No networks found.");
+
+        display.display();
+
+        delay(2000);
+
+        WiFi.scanDelete(); // Delete scan results to free memory
+
+        WiFi.mode(WIFI_OFF); // Turn off Wi-Fi to save power
+
+        return; // Exit the app
+
+    }
+
+
+    int currentWifiSelection = 0;       // Index of the currently selected Wi-Fi network
+
+    unsigned long lastNavTime = 0;    // Timestamp for menu navigation debouncing
+
+    int firstVisibleItem = 0;          // Index of the first item shown on the screen
+
+    const int MAX_WIFI_ITEMS = 5;      // Maximum Wi-Fi networks to display at once
+
+
+    // Phase 1: Display the list of Wi-Fi networks and allow selection
+
+    while(!backPressed()) {
+
+        if (joyPressed()){
+
+          waitRelease(JOY_BTN);
+
+          break; // Exit loop to go to phase 2
+
+        }
+
+
+        // Handle vertical navigation with joystick
+
+        if (joyMovedUp(lastNavTime)) {
+
+            currentWifiSelection--;
+
+            if (currentWifiSelection < 0) currentWifiSelection = n - 1; // Wrap around
+
+        }
+
+        if (joyMovedDown(lastNavTime)) {
+
+            currentWifiSelection++;
+
+            if (currentWifiSelection >= n) currentWifiSelection = 0; // Wrap around
+
+        }
+
+
+        // Adjust visible window of networks if selection goes off screen
+
+        if (currentWifiSelection < firstVisibleItem) {
+
+            firstVisibleItem = currentWifiSelection;
+
+        }
+
+        if (currentWifiSelection >= firstVisibleItem + MAX_WIFI_ITEMS) {
+
+            firstVisibleItem = currentWifiSelection - (MAX_WIFI_ITEMS - 1);
+
+        }
+
+
+        display.clearDisplay();
+
+        display.setCursor(0, 0);
+
+        display.setTextSize(1);
+
+        display.println("Select a Network:");
+
+        display.drawFastHLine(0, 10, 127, SSD1306_WHITE); // Separator line
+
+
+        // Draw visible network items
+
+        for (int i = 0; i < MAX_WIFI_ITEMS && (firstVisibleItem + i) < n; i++) {
+
+            int itemIndex = firstVisibleItem + i;
+
+            String ssid = WiFi.SSID(itemIndex); // Get SSID
+
+            long rssi = WiFi.RSSI(itemIndex);   // Get RSSI
+
+
+            display.setCursor(0, 16 + i * 9); // Position for current item
+
+            // Highlight selected item
+
+            if (itemIndex == currentWifiSelection) {
+
+                display.setTextColor(SSD1306_BLACK, SSD1306_WHITE); // Black text on white background
+
+            } else {
+
+                display.setTextColor(SSD1306_WHITE); // White text on black background
+
+            }
+
+
+            // Truncate long SSIDs
+
+            if (ssid.length() > 15) {
+
+                ssid = ssid.substring(0, 12) + "...";
+
+            }
+
+            display.print(ssid);
+
+            display.print(" (");
+
+            display.print(rssi);
+
+            display.print(")");
+
+        }
+
+        display.display(); // Update display
+
+        delay(10);
+
+    }
+
+    
+
+    // If the user pressed the back button, exit the app now
+
+    if (backPressed()) {
+
+        WiFi.scanDelete();
+
+        WiFi.mode(WIFI_OFF);
+
+        waitRelease(BACK_BTN);
+
+        return;
+
+    }
+
+
+    String selectedSSID = WiFi.SSID(currentWifiSelection); // Store selected SSID
+
+    
+
+    // Delete scan results to free up memory
+
+    WiFi.scanDelete();
+
+
+    // Phase 2: Display the real-time RSSI graph for the selected network
+
+    const int HISTORY_SIZE = 64; // Number of historical RSSI points to store
+
+    int history[HISTORY_SIZE] = {0}; // Array to store historical RSSI values
+
+    int historyIndex = 0;             // Current index in the circular history buffer
+
+    unsigned long lastReadTime = 0; // Timestamp of last RSSI reading
+
+    const unsigned long READ_INTERVAL = 250; // Interval for reading RSSI
+
+
+    while (!backPressed()) { // Loop until back button is pressed
+
+        if (millis() - lastReadTime >= READ_INTERVAL) { // Time to take a new reading
+
+            lastReadTime = millis();
+
+            
+
+            // Perform a quick scan to get the latest RSSI for the selected network
+
+            int newScanCount = WiFi.scanNetworks(false, true); // non-blocking, hidden networks allowed
+
+            long currentRssi = -100; // Default to a low value if network is not found
+
+            for (int i = 0; i < newScanCount; i++) {
+
+                if (WiFi.SSID(i) == selectedSSID) {
+
+                    currentRssi = WiFi.RSSI(i);
+
+                    break;
+
+                }
+
+            }
+
+            
+
+            history[historyIndex] = currentRssi; // Store in history
+
+            historyIndex = (historyIndex + 1) % HISTORY_SIZE; // Advance index (circular)
+
+            WiFi.scanDelete(); // Delete scan results to free memory
+
+        }
+
+
+        // Calculate min, max, and average RSSI for dynamic graph scaling and display
+
+        int minRssi = -100; // Default min for mapping
+
+        int maxRssi = -30;  // Default max for mapping
+
+        long totalRssi = 0;
+
+        int validCount = 0;
+
+        for (int i = 0; i < HISTORY_SIZE; i++) {
+
+            if (history[i] != 0) { // Only consider valid readings
+
+                if (history[i] < minRssi) minRssi = history[i];
+
+                if (history[i] > maxRssi) maxRssi = history[i];
+
+                totalRssi += history[i];
+
+                validCount++;
+
+            }
+
+        }
+
+        long averageRssi = validCount > 0 ? totalRssi / validCount : 0;
+
+        // Ensure min and max are not identical to prevent map() issues
+
+        if (minRssi == maxRssi) {
+
+            minRssi -= 5;
+
+            maxRssi += 5;
+
+        }
+
+
+        display.clearDisplay();
+
+        display.setTextSize(1);
+
+        display.setTextColor(SSD1306_WHITE);
+
+        display.setCursor(0, 0);
+
+        display.print("Tracking: ");
+
+        // Display selected SSID (truncated if too long)
+
+        display.println(selectedSSID.substring(0, min(14, (int)selectedSSID.length())));
+
+
+        display.setCursor(0, 8);
+
+        display.print("Avg: ");
+
+        display.print(averageRssi);
+
+        display.println(" dBm"); // Display average RSSI
+
+
+        display.setCursor(0, 16);
+
+        // Get and display signal quality status
+
+        String signalStatus = getSignalStrengthStatus(history[(historyIndex + HISTORY_SIZE - 1) % HISTORY_SIZE]);
+
+        display.print("Status: ");
+
+        display.println(signalStatus);
+
+
+        // Draw the graph area border
+
+        display.drawRect(0, 30, 128, 34, SSD1306_WHITE);
+
+        // Display min/max RSSI labels on the Y-axis
+
+        display.setCursor(1, 32); display.print(maxRssi);
+
+        display.setCursor(1, 56); display.print(minRssi);
+
+
+        // Draw the filled area graph for RSSI history
+
+        // Iterates through history, mapping RSSI to Y position and drawing vertical lines
+
+        for (int i = 0; i < HISTORY_SIZE; i++) {
+
+          // Map RSSI value to screen Y coordinate (inverted for graph display)
+
+          // `63` is the bottom of the graph area, `31` is the top
+
+          int y1 = map(history[(historyIndex + i) % HISTORY_SIZE], minRssi, maxRssi, 63, 31);
+
+          if (history[(historyIndex + i) % HISTORY_SIZE] != 0) { // Only draw valid points
+
+            // Draw a vertical line from the bottom of the graph to the data point
+
+            display.drawLine(1 + i*2, 63, 1 + i*2, y1, SSD1306_WHITE);
+
+          }
+
+        }
+
+        
+
+        display.display(); // Update the display
+
+        delay(10); // Small delay for smooth updates
+
+    }
+
+    
+
+    WiFi.mode(WIFI_OFF); // Turn off Wi-Fi
+
+    waitRelease(BACK_BTN); // Wait for back button release
+
+}
+
+
+
+// --- Helper function to launch apps from the command prompt ---
+
+
+// ================= COMMAND PROMPT ==================
+// ==================== WI-FI DEAUTHENTICATION ATTACK ====================
+// WARNING: For educational use on your own network ONLY. This is illegal otherwise.
+// This app uses the ESP32's built-in Wi-Fi module to perform a
+// deauthentication attack on a selected network.
+
+
+// ==================== WIFI LOCATOR APP ====================
+// Estimates distance to a selected WiFi network based on RSSI.
+// Note: This is an approximation and accuracy can be affected by obstacles.
+// ==================== WIFI LOCATOR APP (IMPROVED) ====================
+// Estimates distance to a selected WiFi network based on RSSI.
+//
+// MODIFICATION:
+// This version adds an Exponential Moving Average (EMA) filter to the RSSI
+// readings. This smooths out the wild fluctuations in the raw signal,
+// providing a much more stable and accurate distance estimation instead of
+// values that jump around.
+//
+void runWiFiLocator() {
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setTextColor(SSD1306_WHITE);
+    display.setCursor(0, 0);
+    display.println("Scanning for WiFi...");
+    display.display();
+
+    // Set ESP32 to Wi-Fi station mode to scan networks.
+    WiFi.mode(WIFI_STA);
+    WiFi.disconnect();
+    int n = WiFi.scanNetworks();
+
+    if (n == 0) {
+        display.clearDisplay();
+        display.println("No networks found.");
+        display.display();
+        delay(2000);
+        WiFi.mode(WIFI_OFF);
+        return;
+    }
+
+    int currentWifiSelection = 0;
+    unsigned long lastNavTime = 0;
+    int firstVisibleItem = 0;
+    const int MAX_WIFI_ITEMS = 5;
+
+    // --- Phase 1: Select a Network ---
+    while(true) {
+        if (backPressed()) { // Exit app if back is pressed here
+            WiFi.scanDelete();
+            WiFi.mode(WIFI_OFF);
+            waitRelease(BACK_BTN);
+            return;
+        }
+        if (joyPressed()){
+          waitRelease(JOY_BTN);
+          break; // Move to Phase 2
+        }
+
+        // Handle navigation
+        if (joyMovedUp(lastNavTime)) {
+            currentWifiSelection = (currentWifiSelection - 1 + n) % n;
+        }
+        if (joyMovedDown(lastNavTime)) {
+            currentWifiSelection = (currentWifiSelection + 1) % n;
+        }
+
+        // Adjust visible window
+        if (currentWifiSelection < firstVisibleItem) firstVisibleItem = currentWifiSelection;
+        if (currentWifiSelection >= firstVisibleItem + MAX_WIFI_ITEMS) firstVisibleItem = currentWifiSelection - (MAX_WIFI_ITEMS - 1);
+
+        display.clearDisplay();
+        display.setCursor(0, 0);
+        display.setTextSize(1);
+        display.println("Select a Network:");
+        display.drawFastHLine(0, 10, 127, SSD1306_WHITE);
+
+        for (int i = 0; i < MAX_WIFI_ITEMS && (firstVisibleItem + i) < n; i++) {
+            int itemIndex = firstVisibleItem + i;
+            String ssid = WiFi.SSID(itemIndex);
+            display.setCursor(0, 16 + i * 9);
+            if (itemIndex == currentWifiSelection) {
+                display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
+            } else {
+                display.setTextColor(SSD1306_WHITE);
+            }
+            display.print(ssid.substring(0, 20)); // Truncate SSID
+        }
+        display.display();
+        delay(10);
+    }
+
+    String selectedSSID = WiFi.SSID(currentWifiSelection);
+    WiFi.scanDelete(); // Free memory
+
+    // --- Phase 2: Estimate Distance ---
+    unsigned long lastReadTime = 0;
+    const unsigned long READ_INTERVAL = 500; // Read RSSI every 500ms
+
+    // Constants for the distance formula
+    const double TX_POWER_AT_1M = -45.0; // RSSI at 1 meter (dBm). Adjust this value for your environment.
+    const double PATH_LOSS_EXPONENT = 3.0; // Signal propagation constant. (2.0 for free space, 3.0-4.0 for indoors)
+
+    // --- NEW: Variables for signal smoothing ---
+    double smoothedRssi = 0.0;     // This will hold the stable, averaged RSSI value
+    long rawRssi = -100;           // This will hold the latest raw RSSI reading
+    bool hasFirstReading = false;  // Flag to initialize the smoother
+    
+    // Smoothing factor: 0.0 = no smoothing, 1.0 = instant change.
+    // A low value like 0.25 makes it smooth but slower to react.
+    const double ALPHA = 0.25; 
+    // --- End NEW ---
+
+    while (!backPressed()) {
+
+        // --- 1. Get new RSSI reading periodically ---
+        if (millis() - lastReadTime >= READ_INTERVAL) {
+            lastReadTime = millis();
+            bool networkFound = false;
+            int newScanCount = WiFi.scanNetworks(false, true);
+            
+            for (int i = 0; i < newScanCount; i++) {
+                if (WiFi.SSID(i) == selectedSSID) {
+                    rawRssi = WiFi.RSSI(i); // Get the raw, jumpy signal
+                    networkFound = true;
+                    
+                    // --- 2. Update the smoothed value ---
+                    if (!hasFirstReading) {
+                        smoothedRssi = rawRssi; // Initialize smoother with the first reading
+                        hasFirstReading = true;
+                    } else {
+                        // Apply Exponential Moving Average (EMA) filter
+                        smoothedRssi = (ALPHA * rawRssi) + ((1.0 - ALPHA) * smoothedRssi);
+                    }
+                    break;
+                }
+            }
+            WiFi.scanDelete();
+            
+            if (!networkFound) {
+                rawRssi = -100; // Show -100 if network is lost
+            }
+        }
+        
+        // --- 3. Calculate distance based on the STABLE smoothed value ---
+        double distance = 0.0;
+        if (hasFirstReading) {
+            // distance = 10 ^ ((RSSI at 1m - smoothed RSSI) / (10 * path loss exponent))
+            distance = pow(10.0, (TX_POWER_AT_1M - smoothedRssi) / (10.0 * PATH_LOSS_EXPONENT));
+        }
+
+        // --- 4. Display Results ---
+        display.clearDisplay();
+        display.setTextSize(1);
+        display.setTextColor(SSD1306_WHITE);
+        display.setCursor(0, 0);
+        display.print("Tracking: ");
+        display.println(selectedSSID.substring(0, 14));
+        display.drawFastHLine(0, 10, 128, SSD1306_WHITE);
+
+        display.setCursor(0, 16);
+        display.print("Signal (Raw): ");
+        display.print(rawRssi); // Display the jumpy raw value
+        display.println(" dBm");
+
+        display.setTextSize(2);
+        display.setCursor(0, 34);
+        
+        if (hasFirstReading) {
+            display.print(distance, 1); // Show stable distance with 1 decimal place
+            display.print(" m");
+        } else {
+            display.setTextSize(1);
+            display.setCursor(0, 34);
+            display.print("Waiting for signal...");
+        }
+
+        display.setTextSize(1);
+        display.setCursor(0, 54);
+        display.print("(Approximate radius)");
+        
+        display.display();
+        delay(50); // Keep UI responsive
+    }
+    
+    // Cleanup on exit
+    WiFi.mode(WIFI_OFF);
+    waitRelease(BACK_BTN);
+}
+// ==================== JAMMER APP ====================
+// Note: This app disables and re-enables core WiFi/BT services.
+// Use with caution.
+
+
+            // ==================== JAMMER APP (Corrected for performance) ====================
+// Note: This app disables and re-enables core WiFi services.
+// Use with caution. Its effectiveness is highly dependent on a stable power supply for the NRF24L01.
+
+// Helper functions for the Jammer/*
+ 
+// ==================== SETUP & MAIN LOOP ====================// ==================== BLE JAMMER APP (Bluetooth Only) ====================
+// This app is designed to disrupt Bluetooth Low Energy (BLE) device discovery
+// by targeting the three specific advertising channels.
+// NOTE: This does NOT jam Wi-Fi.
+
+
+ 
+ 
+ 
+ 
+
+
+// ADD THESE LINES FOR THE IR APP:
+IRsend irsend(IR_SEND_PIN);
+IRrecv irrecv(IR_RECV_PIN);
+decode_results results;
+
+// New structure to store decoded signals (uses much less RAM)
+struct SavedSignal {
+  String name;
+  uint64_t value;
+  decode_type_t protocol;
+  uint8_t bits;
+};
+
+#define MAX_SAVED_SIGNALS 10 // Can store more signals this way
+SavedSignal savedSignals[MAX_SAVED_SIGNALS];
+int numSavedSignals = 0;
+
+// Temporary variables for passing data from record to save
+uint64_t tempValue;
+decode_type_t tempProtocol;
+uint8_t tempBits;
+
+
+/*
+ * ===================================================================
+ * == UNIVERSAL IR REMOTE APP (DECODED VALUE METHOD)
+ * ===================================================================
+ * This version records decoded hex values (NEC, SONY, etc.)
+ * which is more reliable and uses less memory.
+ * It allows for manual entry of hex codes to send.
+ */
+
+/**
+ * @brief Helper to get a string name for a protocol.
+ */
+String getProtocolName(decode_type_t protocol) {
+  switch (protocol) {
+    case NEC: return "NEC";
+    case SONY: return "SONY";
+    case RC5: return "RC5";
+    case RC6: return "RC6";
+    case PANASONIC_AC: return "PANASONIC";
+    case JVC: return "JVC";
+    case SAMSUNG: return "SAMSUNG";
+    case LG: return "LG";
+    case WHYNTER: return "WHYNTER";
+    case MITSUBISHI: return "MITSUBISHI";
+    default: return "UNKNOWN";
+  }
+}
+
+/**
+ * @brief Opens a simple virtual keyboard to input a string.
+ * Used for signal names and manual hex code entry.
+ * @return String The text entered by the user.
+ */
+String openKeyboard(String title) {
+  String text = "";
+  // Added A-F for hex code entry
+  const char chars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ 0123456789._<";
+  int charIndex = 0;
+  int textLen = strlen(chars);
+  unsigned long gateTs = 0;
+  bool onSave = false; // true = "SAVE" button selected
+
+  while (true) {
+    if (backPressed()) {
+      waitRelease(BACK_BTN);
+      return ""; // Return empty string if user backs out
+    }
+
+    // --- Input Handling ---
+    if (!onSave) {
+      if (joyMovedLeft(gateTs)) {
+        charIndex = (charIndex - 1 + textLen) % textLen;
+      } else if (joyMovedRight(gateTs)) {
+        charIndex = (charIndex + 1) % textLen;
+      }
+    }
+
+    if (joyMovedDown(gateTs)) { onSave = true; }
+    else if (joyMovedUp(gateTs)) { onSave = false; }
+
+    // --- Joystick Button Press ---
+    if (joyPressed()) {
+      waitRelease(JOY_BTN);
+      
+      if (onSave) {
+        return text; // User selected "SAVE"
+      } else {
+        char c = chars[charIndex];
+        if (c == '<') {
+          if (text.length() > 0) text.remove(text.length() - 1);
+        } else if (c == '_') {
+          text += ' ';
+        } else {
+          text += c;
+        }
+      }
+    }
+
+    // --- Drawing ---
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setTextColor(SSD1306_WHITE);
+    display.setCursor(0, 0);
+    display.println(title);
+    display.drawFastHLine(0, 8, 128, SSD1306_WHITE);
+
+    display.setCursor(0, 12);
+    if (text.length() > 21) {
+      display.print("..." + text.substring(text.length() - 18));
+    } else {
+      display.print(text);
+    }
+    display.drawRect(0, 10, 128, 12, SSD1306_WHITE);
+
+    display.setCursor(0, 32);
+    String charWindow = "";
+    for(int i = -3; i <= 3; i++) {
+        int idx = (charIndex + i + textLen) % textLen;
+        charWindow += (chars[idx] == '_') ? ' ' : chars[idx];
+    }
+    display.print("  ");
+    display.print(charWindow);
+    display.print("  ");
+    display.drawRect(3 * 6 + 12 - 2, 30, 9, 11, SSD1306_WHITE);
+
+    display.setCursor(45, 52);
+    if (onSave) display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
+    display.print("[ SAVE ]");
+    display.setTextColor(SSD1306_WHITE);
+    
+    display.display();
+    delay(10);
+  }
+}
+
+/**
+ * @brief Displays a message and waits for a key press.
+ */
+void showMessage(String title, String message, String message2 = "") {
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setTextColor(SSD1306_WHITE);
+    display.setCursor(0, 0);
+    display.println(title);
+    display.drawFastHLine(0, 10, 128, SSD1306_WHITE);
+    display.setCursor(0, 24);
+    display.println(message);
+    display.println(message2);
+    display.setCursor(10, 50);
+    display.print("Press any key...");
+    display.display();
+    
+    while (digitalRead(JOY_BTN) == HIGH && digitalRead(BACK_BTN) == HIGH) {
+        delay(10);
+    }
+    if (joyPressed()) waitRelease(JOY_BTN);
+    if (backPressed()) waitRelease(BACK_BTN);
+}
+
+/**
+ * @brief Main function for the new Universal IR Remote application.
+ */
+void runIRRemote() {
+    irrecv.enableIRIn(); 
+    
+    int menuSelection = 0;
+    int listSelection = 0;
+    unsigned long gateTs = 0;
+    
+    // 0 = Main Menu, 1 = Recording, 2 = Save Sgnal, 3 = Send List, 4 = Manual Send
+    int appState = 0; 
+    String menuItems[] = {"Record Signal", "Send Saved Signal", "Send Manual Code"};
+    int totalMenuItems = 3;
+
+    while (true) {
+        if (backPressed()) {
+            waitRelease(BACK_BTN);
+            if (appState == 0) {
+                break; // Exit app from main menu
+            } else {
+                appState = 0; // Go back to main menu
+            }
+        }
+        
+        // --- Main Menu State ---
+        if (appState == 0) {
+            if (joyMovedUp(gateTs)) menuSelection = (menuSelection - 1 + totalMenuItems) % totalMenuItems;
+            if (joyMovedDown(gateTs)) menuSelection = (menuSelection + 1) % totalMenuItems;
+
+            if (joyPressed()) {
+                waitRelease(JOY_BTN);
+                if (menuSelection == 0) { // Record
+                    if (numSavedSignals >= MAX_SAVED_SIGNALS) {
+                        showMessage("Error", "Signal storage is full!");
+                    } else {
+                        appState = 1; // Go to Record
+                    }
+                } else if (menuSelection == 1) { // Send Saved
+                    appState = 3; // Go to Send List
+                    listSelection = 0;
+                } else if (menuSelection == 2) { // Send Manual
+                    appState = 4; // Go to Manual Send
+                }
+            }
+            
+            display.clearDisplay();
+            display.setTextSize(1);
+            display.setTextColor(SSD1306_WHITE);
+            display.setCursor(0, 0);
+            display.println("IR Remote");
+            display.drawFastHLine(0, 10, 128, SSD1306_WHITE);
+            
+            for(int i=0; i<totalMenuItems; i++) {
+                display.setCursor(10, 24 + i*12);
+                if (i == menuSelection) display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
+                else display.setTextColor(SSD1306_WHITE);
+                display.print("> ");
+                display.println(menuItems[i]);
+            }
+        }
+        // --- Recording State ---
+        else if (appState == 1) {
+            display.clearDisplay();
+            display.setTextSize(1);
+            display.setTextColor(SSD1306_WHITE);
+            display.setCursor(0, 0);
+            display.println("Recording...");
+            display.drawFastHLine(0, 10, 128, SSD1306_WHITE);
+            display.setCursor(0, 24);
+            display.println("Point remote at sensor");
+            display.println("and press a button...");
+            display.setCursor(0, 52);
+            display.println("Press BACK to cancel");
+            display.display();
+
+            if (irrecv.decode(&results)) {
+                // Success! Store results temporarily
+                tempValue = results.value;
+                tempProtocol = results.decode_type;
+                tempBits = results.bits;
+                
+                irrecv.resume();
+                appState = 2; // Go to "Save" state
+            }
+        }
+        // --- Save Signal State ---
+        else if (appState == 2) {
+            irrecv.disableIRIn(); // Stop receiver while using keyboard
+            
+            // Display what was captured
+            display.clearDisplay();
+            display.setTextSize(1);
+            display.setTextColor(SSD1306_WHITE);
+            display.setCursor(0,0);
+            display.println("Signal Captured!");
+            display.drawFastHLine(0, 10, 128, SSD1306_WHITE);
+            display.setCursor(0, 16);
+            display.print("Proto: ");
+            display.println(getProtocolName(tempProtocol));
+            display.setCursor(0, 26);
+            display.print("Bits:  ");
+            display.println(tempBits);
+            display.setCursor(0, 36);
+            display.print("Value: 0x");
+            display.println((unsigned long)tempValue, HEX); // Show hex value
+            display.setCursor(0, 52);
+            display.println("Press JOY to name/save");
+            display.display();
+
+            while(digitalRead(JOY_BTN) == HIGH && digitalRead(BACK_BTN) == HIGH) { delay(10); }
+
+            if(joyPressed()) {
+                waitRelease(JOY_BTN);
+                String tempName = openKeyboard("Enter Signal Name:");
+
+                if (tempName.length() > 0) {
+                    savedSignals[numSavedSignals].name = tempName;
+                    savedSignals[numSavedSignals].value = tempValue;
+                    savedSignals[numSavedSignals].protocol = tempProtocol;
+                    savedSignals[numSavedSignals].bits = tempBits;
+                    numSavedSignals++;
+                    
+                    showMessage("Success", "Signal saved!");
+                }
+            }
+            
+            irrecv.enableIRIn(); // Re-enable receiver
+            appState = 0; // Back to main menu
+        }
+        // --- Send List State ---
+        else if (appState == 3) {
+            if (numSavedSignals == 0) {
+                showMessage("Empty", "No signals saved yet.");
+                appState = 0;
+                continue;
+            }
+
+            if (joyMovedUp(gateTs)) listSelection = (listSelection - 1 + numSavedSignals) % numSavedSignals;
+            if (joyMovedDown(gateTs)) listSelection = (listSelection + 1) % numSavedSignals;
+
+            if (joyPressed()) {
+                waitRelease(JOY_BTN);
+                SavedSignal sig = savedSignals[listSelection];
+                
+                irsend.begin();
+                irsend.send(sig.protocol, sig.value, sig.bits);
+                
+                showMessage("Sent!", sig.name, "Proto: " + getProtocolName(sig.protocol));
+            }
+            
+            display.clearDisplay();
+            display.setTextSize(1);
+            display.setTextColor(SSD1306_WHITE);
+            display.setCursor(0, 0);
+            display.println("Select Signal to Send");
+            display.drawFastHLine(0, 10, 128, SSD1306_WHITE);
+
+            const int MAX_ITEMS_ON_SCREEN = 5;
+            int startItem = 0;
+            if (listSelection >= MAX_ITEMS_ON_SCREEN) {
+                startItem = listSelection - (MAX_ITEMS_ON_SCREEN - 1);
+            }
+
+            for (int i = startItem; i < startItem + MAX_ITEMS_ON_SCREEN && i < numSavedSignals; i++) {
+                int yPos = 12 + (i - startItem) * 10;
+                display.setCursor(0, yPos);
+                if (i == listSelection) display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
+                else display.setTextColor(SSD1306_WHITE);
+                display.print("> ");
+                display.print(savedSignals[i].name);
+            }
+        }
+        // --- Manual Send State ---
+        else if (appState == 4) {
+            irrecv.disableIRIn(); // Disable receiver
+            
+            String hexCode = openKeyboard("Enter Hex Code (NEC):");
+
+            if (hexCode.length() > 0) {
+                // Convert hex string to number. strtoull is for 'unsigned long long'
+                uint64_t value = strtoull(hexCode.c_str(), NULL, 16);
+
+                irsend.begin();
+                // We default to NEC (32-bit) for manual entry, as it's common
+                // and matches the "enter a value" request.
+                irsend.sendNEC(value, 32); 
+                
+                showMessage("Sent NEC Code!", "Value: 0x" + hexCode);
+            }
+            
+            irrecv.enableIRIn();
+            appState = 0; // Go back to main menu
+        }
+        
+        display.display();
+        delay(10);
+    }
+    
+    irrecv.disableIRIn(); // Disable receiver on app exit
+}
+
+// MAKE SURE THIS IS THE VERY END OF YOUR FILE
+
+// ===============================================================================================
+// ============================= NEW WIFI DETAILS APP CODE =======================================
+// ===============================================================================================
+
+
+// --- Virtual Keyboard for WiFi Password ---
+// A new keyboard that matches your request:
+// - Joy-Up/Down cycles through character sets
+// - Joy-Left/Right selects character
+// - Joy-Button adds character, backspace, or confirms
+String openWifiKeyboard(String ssid) {
+    String password = "";
+    int setIndex = 0;     // 0=lower, 1=upper, 2=nums, 3=syms
+    int charIndex = 0;    // Index of selected char in the set
+
+    // Character sets as requested
+    const char* k_sets[4] = {
+        "abcdefghijklmnopqrstuvwxyz",   // Lowercase
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ",   // Uppercase
+        "1234567890",                   // Numbers
+        "!@#$%^&%=+_-?<=/"               // Symbols (!, @, #, $, %, ^, &, %, =, +, _, -, ?, < (backspace), = (OK))
+    };
+    const char* k_titles[4] = { "abc", "ABC", "123", "?!#" };
+
+    unsigned long gateTs = 0; // For joystick delay
+
+    while (true) {
+        if (backPressed()) {
+            waitRelease(BACK_BTN);
+            return ""; // User cancelled
+        }
+
+        const char* currentSet = k_sets[setIndex];
+        int setLen = strlen(currentSet);
+
+        // --- Handle Input ---
+        if (joyMovedUp(gateTs)) {
+            setIndex = (setIndex + 1) % 4; // Cycle UP to next set
+            charIndex = 0;
+        }
+        if (joyMovedDown(gateTs)) {
+            setIndex = (setIndex - 1 + 4) % 4; // Cycle DOWN to previous set
+            charIndex = 0;
+        }
+        if (joyMovedLeft(gateTs)) {
+            charIndex = (charIndex - 1 + setLen) % setLen; // Move left
+        }
+        if (joyMovedRight(gateTs)) {
+            charIndex = (charIndex + 1) % setLen; // Move right
+        }
+
+        if (joyPressed()) {
+            waitRelease(JOY_BTN);
+            char c = currentSet[charIndex];
+            
+            if (c == '<') { // Backspace
+                if (password.length() > 0) {
+                    password.remove(password.length() - 1);
+                }
+            } else if (c == '=') { // OK/Submit
+                return password;
+            } else {
+                password += c;
+            }
+        }
+
+        // --- Draw Screen ---
+        display.clearDisplay();
+        display.setTextSize(1);
+        display.setTextColor(SSD1306_WHITE);
+
+        // Show SSID
+        display.setCursor(0, 0);
+        display.print("Pass for: ");
+        display.println(ssid.substring(0, 10)); // Show first 10 chars of SSID
+
+        // Show password as stars
+        display.setCursor(0, 10);
+        String starPass = "";
+        for(int i = 0; i < password.length(); i++) starPass += "*";
+        display.print(starPass);
+        
+        // Draw dividing line
+        display.drawFastHLine(0, 20, 128, SSD1306_WHITE);
+        
+        // Show keyboard title
+        display.setCursor(0, 24);
+        display.print("Set: ");
+        display.print(k_titles[setIndex]);
+
+        // Draw the scrolling character set
+        display.setCursor(0, 40);
+        
+        int displayWidth = 21; // Max chars to show on screen (128 / 6px char width)
+        int startPos = max(0, charIndex - (displayWidth / 2)); // Center selected char
+        startPos = min(startPos, setLen - displayWidth); // Don't scroll past the end
+        startPos = max(0, startPos); // Don't scroll before the beginning
+
+        for (int i = 0; i < displayWidth; i++) {
+            int c_idx = startPos + i;
+            if (c_idx >= setLen) break;
+
+            if (c_idx == charIndex) { // Highlight selected
+                display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
+                display.print(currentSet[c_idx]);
+                display.setTextColor(SSD1306_WHITE);
+            } else {
+                display.print(currentSet[c_idx]);
+            }
+        }
+
+        // Draw selection marker
+        display.setCursor((charIndex - startPos) * 6, 50);
+        display.print("^");
+
+        display.display();
+        delay(10);
+    }
+}
+
+
+// --- Main App Function: WiFi Details ---
+void runWifiDetails() {
+    String selectedSSID = "";
+    int currentWifiSelection = 0;
+    int firstVisibleItem = 0;
+    const int MAX_WIFI_ITEMS = 5;
+    int n = 0; // Number of networks found
+    unsigned long lastNavTime = 0;
+    
+    // --- STAGE 1: Scan and Select Network ---
+    while (selectedSSID == "") {
+        display.clearDisplay();
+        display.setTextSize(1);
+        display.setTextColor(SSD1306_WHITE);
+        display.setCursor(0, 0);
+        display.println("Scanning for WiFi...");
+        display.display();
+
+        WiFi.mode(WIFI_STA);
+        WiFi.disconnect();
+        n = WiFi.scanNetworks();
+
+        if (n == 0) {
+            display.clearDisplay();
+            display.println("No networks found.");
+            display.display();
+            delay(2000);
+            WiFi.mode(WIFI_OFF);
+            return; // Exit app
+        }
+
+        // --- Network Selection Loop ---
+        while (true) {
+            if (backPressed()) {
+                waitRelease(BACK_BTN);
+                WiFi.mode(WIFI_OFF);
+                return; // Exit app
+            }
+            if (joyPressed()) {
+                waitRelease(JOY_BTN);
+                selectedSSID = WiFi.SSID(currentWifiSelection); // Network selected!
+                break; // Move to password entry
+            }
+
+            // Handle vertical navigation
+            if (joyMovedUp(lastNavTime)) {
+                currentWifiSelection = (currentWifiSelection - 1 + n) % n;
+            }
+            if (joyMovedDown(lastNavTime)) {
+                currentWifiSelection = (currentWifiSelection + 1) % n;
+            }
+
+            // Adjust visible window
+            if (currentWifiSelection < firstVisibleItem) firstVisibleItem = currentWifiSelection;
+            if (currentWifiSelection >= firstVisibleItem + MAX_WIFI_ITEMS) firstVisibleItem = currentWifiSelection - (MAX_WIFI_ITEMS - 1);
+
+            display.clearDisplay();
+            display.setCursor(0, 0);
+            display.setTextSize(1);
+            display.println("Select a Network:");
+            display.drawFastHLine(0, 10, 127, SSD1306_WHITE);
+
+            for (int i = 0; i < MAX_WIFI_ITEMS && (firstVisibleItem + i) < n; i++) {
+                int itemIndex = firstVisibleItem + i;
+                String ssid = WiFi.SSID(itemIndex);
+                display.setCursor(0, 16 + i * 9);
+                if (itemIndex == currentWifiSelection) {
+                    display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
+                } else {
+                    display.setTextColor(SSD1306_WHITE);
+                }
+                display.print(ssid.substring(0, 20)); // Truncate SSID
+            }
+            display.display();
+            delay(10);
+        }
+    } // End of Stage 1
+
+    WiFi.scanDelete(); // Free up memory
+
+    // --- STAGE 2: Get Password ---
+    String password = openWifiKeyboard(selectedSSID);
+    if (password == "") {
+        runWifiDetails(); // User cancelled, restart the app
+        return;
+    }
+
+    // --- STAGE 3: Connect to WiFi ---
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setTextColor(SSD1306_WHITE);
+    display.setCursor(0, 10);
+    display.print("Connecting to:");
+    display.setCursor(0, 20);
+    display.print(selectedSSID);
+    display.display();
+    
+    WiFi.begin(selectedSSID.c_str(), password.c_str());
+
+    unsigned long connectStart = millis();
+    int dots = 0;
+    while (WiFi.status() != WL_CONNECTED) {
+        if (millis() - connectStart > 20000) { // 20 second timeout
+            display.clearDisplay();
+            display.setCursor(0, 20);
+            display.print("Connection Failed!");
+            display.display();
+            delay(2000);
+            WiFi.disconnect();
+            runWifiDetails(); // Restart app
+            return;
+        }
+        
+        // Simple "...." animation
+        display.setCursor(dots * 6, 40);
+        display.print(".");
+        display.display();
+        dots = (dots + 1) % 20;
+        if(dots == 0) { // Clear dots
+             display.fillRect(0, 40, 128, 8, SSD1306_BLACK);
+        }
+        delay(500);
+    }
+
+    // --- STAGE 4: Display Details (Scrollable) ---
+    String detailLines[8];
+    int lineCount = 0;
+    
+    detailLines[lineCount++] = "SSID: " + WiFi.SSID();
+    detailLines[lineCount++] = "IP: " + WiFi.localIP().toString();
+    detailLines[lineCount++] = "MAC: " + WiFi.macAddress();
+    detailLines[lineCount++] = "Gateway: " + WiFi.gatewayIP().toString();
+    detailLines[lineCount++] = "Subnet: " + WiFi.subnetMask().toString();
+    detailLines[lineCount++] = "RSSI: " + String(WiFi.RSSI()) + " dBm";
+    detailLines[lineCount++] = "DNS 1: " + WiFi.dnsIP(0).toString();
+    if (WiFi.dnsIP(1).toString() != "0.0.0.0") {
+        detailLines[lineCount++] = "DNS 2: " + WiFi.dnsIP(1).toString();
+    }
+    
+    int totalLines = lineCount;
+    int topLine = 0; // The first line to display
+    const int LINES_ON_SCREEN = 5;
+
+    while (true) {
+        if (backPressed()) {
+            waitRelease(BACK_BTN);
+            WiFi.disconnect();
+            WiFi.mode(WIFI_OFF);
+            return; // Exit app
+        }
+        
+        // Handle scrolling
+        if (joyMovedUp(lastNavTime)) {
+            topLine = max(0, topLine - 1); // Scroll up
+        }
+        if (joyMovedDown(lastNavTime)) {
+            // Don't scroll past the last item
+            topLine = min(max(0, totalLines - LINES_ON_SCREEN), topLine + 1);
+        }
+
+        display.clearDisplay();
+        display.setTextSize(1);
+        display.setTextColor(SSD1306_WHITE);
+        display.setCursor(0, 0);
+        display.print("WiFi Details");
+        display.drawFastHLine(0, 9, 128, SSD1306_WHITE);
+
+        // Draw the visible lines
+        for (int i = 0; i < LINES_ON_SCREEN; i++) {
+            int lineIdx = topLine + i;
+            if (lineIdx < totalLines) {
+                display.setCursor(0, 12 + i * 10);
+                display.print(detailLines[lineIdx]);
+            }
+        }
+        
+        // Draw scrollbar
+        if (totalLines > LINES_ON_SCREEN) {
+            int barHeight = max(5, (LINES_ON_SCREEN * (64 - 10)) / totalLines);
+            int barTop = 10 + (topLine * (64 - 10 - barHeight)) / (totalLines - LINES_ON_SCREEN);
+            display.drawRect(126, 10, 2, 54, SSD1306_WHITE);
+            display.fillRect(126, barTop, 2, barHeight, SSD1306_WHITE);
+        }
+
+        display.display();
+        delay(10);
+    }
+}
+
+
+
+
+
+
+
+   /*
+ * ===================================================================
+ * ==         FIXED MORSE CODE APP
+ * ===================================================================
+ *
+ * This file contains the corrected, standalone code for the Morse Code app.
+ * All helper functions have been renamed to prevent errors.
+ *
+ */
+
+// --- VIRTUAL KEYBOARD (FOR MORSE APP) ---
+String runVirtualKeyboard_Morse(String title, String confirmText = "[ ENTER ]") {
+  String currentMessage = "";
+  // Added symbols from your BytesConverter keyboard for consistency
+  const char* charRows[] = {
+    "abcdefghijklmnopqrstuvwxyz", 
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZ", 
+    "0123456789", 
+    "!@#$%^*&()?/_<" // Symbol set with space (_) and backspace (<)
+  };
+  const char* k_titles[4] = { "[a-z]", "[A-Z]", "[0-9]", "[Sym]" };
+
+  const int numCharSets = 4;
+  int charSetIndex = 0;
+  int charIndex = 0;
+  unsigned long gateTs = 0;
+  bool onEnter = false; // Flag for being on the confirm button
+
+  while (true) {
+    if (backPressed()) {
+      waitRelease(BACK_BTN);
+      return ""; // Cancel message/input
+    }
+
+    const char* currentRow = charRows[charSetIndex];
+    int currentSetLen = strlen(currentRow);
+
+    if (!onEnter) {
+      if (joyMovedLeft(gateTs)) {
+        charIndex = (charIndex - 1 + currentSetLen) % currentSetLen;
+      } else if (joyMovedRight(gateTs)) {
+        charIndex = (charIndex + 1) % currentSetLen;
+      }
+    }
+
+    if (joyMovedDown(gateTs)) {
+        if (!onEnter) onEnter = true;
+    } else if (joyMovedUp(gateTs)) {
+        if (onEnter) {
+            onEnter = false;
+        } else {
+            // Cycle character sets
+            charSetIndex = (charSetIndex + 1) % numCharSets;
+            charIndex = 0;
+        }
+    }
+
+    if (joyPressed()) {
+      waitRelease(JOY_BTN);
+      if (onEnter) {
+        // User pressed [ENTER] or [SEND]
+        return currentMessage; // Confirm and return input
+      } else {
+        // User selected a character
+        char c = currentRow[charIndex];
+        if (c == '<') {
+          if (currentMessage.length() > 0) currentMessage.remove(currentMessage.length() - 1);
+        } else if (c == '_') {
+          currentMessage += ' ';
+        } else {
+          currentMessage += c;
+        }
+      }
+    }
+
+    // --- Drawing ---
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setTextColor(SSD1306_WHITE);
+    
+    // Draw the title
+    display.setCursor(0, 0);
+    display.print(title.substring(0, 21)); 
+
+    // Draw the current message being typed
+    display.setCursor(0, 10);
+    display.print("> ");
+    display.print(currentMessage.substring(0, 19));
+    display.drawFastHLine(0, 20, 128, SSD1306_WHITE); // Line below text
+
+    // Draw the character selection row
+    // Centered window logic
+    display.setCursor(0, 24); 
+    String charWindow = "";
+    int windowSize = 11; // Must be odd
+    int padding = (21 - windowSize) / 2; // 21 chars wide screen
+    for(int i = 0; i < padding; i++) charWindow += " ";
+    
+    for(int i = -(windowSize/2); i <= (windowSize/2); i++) {
+        int idx = (charIndex + i + currentSetLen) % currentSetLen;
+        charWindow += currentRow[idx];
+    }
+    display.print(charWindow);
+    
+    // Draw selection box in the middle
+    display.drawRect((21/2)*6, 23, 7, 9, SSD1306_WHITE);
+
+    
+    // Draw set indicator
+    display.setCursor(100, 2); // Top right
+    display.print(k_titles[charSetIndex]);
+
+    // Draw confirm button (e.g., [ ENTER ] or [ SEND ])
+    int textWidth = confirmText.length() * 6; // 6 pixels wide per char
+    display.setCursor((SCREEN_WIDTH - textWidth) / 2, 48); // Center the text
+    if (onEnter) display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
+    else display.setTextColor(SSD1306_WHITE);
+    display.print(confirmText);
+    
+    // Draw hint
+    display.setCursor(0, 54); 
+    display.setTextColor(SSD1306_WHITE);
+    if (!onEnter) display.print("UP=Change Set");
+    
+    display.display();
+    delay(50);
+  }
+}
+
+// --- MULTILINE DRAW HELPER (FOR MORSE APP) ---
+void drawMultiline_Morse(String text, int x, int y, int maxCharsPerLine) {
+    String currentLine = "";
+    String remainingText = text;
+    int lastSpace = -1;
+
+    display.setCursor(x, y);
+
+    while (remainingText.length() > 0) {
+        currentLine = "";
+        int cutIndex = maxCharsPerLine;
+        if (remainingText.length() <= maxCharsPerLine) {
+            currentLine = remainingText;
+            remainingText = "";
+        } else {
+            // Try to find a space to break at
+            cutIndex = remainingText.lastIndexOf(' ', maxCharsPerLine);
+            if (cutIndex == -1) {
+                // No space found, just cut the word
+                cutIndex = maxCharsPerLine;
+            }
+            currentLine = remainingText.substring(0, cutIndex);
+            // Add 1 to skip the space (if cutIndex was a space)
+            remainingText = remainingText.substring(cutIndex + (cutIndex != maxCharsPerLine ? 1 : 0));
+        }
+        display.println(currentLine);
+    }
+}
+
+// --- MORSE CODE HELPER ---
+String textToMorse(String text) {
+  // Morse code mappings for A-Z and 0-9
+  const char* morseAlphabet[26] = {
+    ".-",   "-...", "-.-.", "-..",  ".",    "..-.", "--.",  "....", "..",   ".---",
+    "-.-",  ".-..", "--",   "-.",   "---",  ".--.", "--.-", ".-.",  "...",  "-",
+    "..-",  "...-", ".--",  "-..-", "-.--", "--.."
+  };
+
+  const char* morseNumbers[10] = {
+    "-----", ".----", "..---", "...--", "....-", ".....", "-....", "--...", "---..", "----."
+  };
+
+  String result = "";
+  text.toUpperCase(); // Convert input to uppercase for easier mapping
+
+  for (int i = 0; i < text.length(); i++) {
+    char c = text.charAt(i);
+
+    if (c >= 'A' && c <= 'Z') {
+      result += morseAlphabet[c - 'A'];
+    } else if (c >= '0' && c <= '9') {
+      result += morseNumbers[c - '0'];
+    } else if (c == ' ') {
+      result += "/"; // Use '/' to separate words
+    } else {
+      result += "?"; // Unknown character
+    }
+    
+    if (i < text.length() - 1) {
+      result += " "; // Add a space between Morse characters
+    }
+  }
+  return result;
+}
+
+
+// --- MAIN MORSE CODE APP ---
+void runMorseCode() {
+  String inputText = "";
+  String morseOutput = "";
+
+  while (true) {
+    if (backPressed()) {
+      waitRelease(BACK_BTN);
+      break; // Exit the app
+    }
+
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setTextColor(SSD1306_WHITE);
+
+    if (inputText == "") {
+      // --- Input Mode ---
+      display.setCursor(0, 0);
+      display.println("Morse Code App");
+      display.drawFastHLine(0, 10, 128, SSD1306_WHITE);
+      display.setCursor(10, 28);
+      display.println("Press JOY to enter");
+      display.setCursor(10, 38);
+      display.println("text to convert.");
+
+      if (joyPressed()) {
+        waitRelease(JOY_BTN);
+        // Call the renamed keyboard function
+        inputText = runVirtualKeyboard_Morse("Enter Text:", "[ SEND ]");
+        
+        if (inputText.length() > 0) {
+          // If text was entered, convert it
+          morseOutput = textToMorse(inputText);
+        }
+      }
+
+    } else {
+      // --- Display Mode ---
+      display.setCursor(0, 0);
+      display.print("Input: ");
+      display.println(inputText.substring(0, 14));
+      display.drawFastHLine(0, 10, 128, SSD1306_WHITE);
+
+      // Call the renamed drawMultiline function
+      drawMultiline_Morse(morseOutput, 0, 14, 21); // 21 chars per line
+
+      // Hint at the bottom
+      display.setCursor(0, 54);
+      display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
+      display.print(" Press JOY for new text ");
+      
+      if (joyPressed()) {
+        waitRelease(JOY_BTN);
+        inputText = "";
+        morseOutput = "";
+      }
+    }
+
+    display.display();
+    delay(50);
+  }
+}
+
+
+/*
+ * ===================================================================
+ * ==         FIXED BYTES CONVERTER APP
+ * ===================================================================
+ *
+ * This file contains the corrected, standalone code for the
+ * Bytes Converter app. All helper functions have been renamed.
+ *
+ */
+
+// --- VIRTUAL KEYBOARD (FOR BYTES APP) ---
+String runVirtualKeyboard_Bytes(String title, String confirmText = "[ ENTER ]") {
+  String currentMessage = "";
+  const char* charRows[] = {
+    "abcdefghijklmnopqrstuvwxyz",
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+    "0123456789",
+    "!@#$%^*&()?/_<" // Symbol set with space (_) and backspace (<)
+  };
+  const char* k_titles[4] = { "[a-z]", "[A-Z]", "[0-9]", "[Sym]" };
+  
+  const int numCharSets = 4;
+  int charSetIndex = 0;
+  int charIndex = 0;
+  unsigned long gateTs = 0;
+  bool onEnter = false; 
+
+  while (true) {
+    if (backPressed()) {
+      waitRelease(BACK_BTN);
+      return ""; // Cancel message/input
+    }
+
+    const char* currentRow = charRows[charSetIndex];
+    int currentSetLen = strlen(currentRow);
+
+    if (!onEnter) {
+      if (joyMovedLeft(gateTs)) {
+        charIndex = (charIndex - 1 + currentSetLen) % currentSetLen;
+      } else if (joyMovedRight(gateTs)) {
+        charIndex = (charIndex + 1) % currentSetLen;
+      }
+    }
+
+    if (joyMovedDown(gateTs)) {
+        if (!onEnter) onEnter = true;
+    } else if (joyMovedUp(gateTs)) {
+        if (onEnter) {
+            onEnter = false;
+        } else {
+            charSetIndex = (charSetIndex + 1) % numCharSets;
+            charIndex = 0;
+        }
+    }
+
+    if (joyPressed()) {
+      waitRelease(JOY_BTN);
+      if (onEnter) {
+        return currentMessage; 
+      } else {
+        char c = currentRow[charIndex];
+        if (c == '<') {
+          if (currentMessage.length() > 0) currentMessage.remove(currentMessage.length() - 1);
+        } else if (c == '_') {
+          currentMessage += ' ';
+        } else {
+          currentMessage += c;
+        }
+      }
+    }
+
+    // --- Drawing ---
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setTextColor(SSD1306_WHITE);
+    
+    display.setCursor(0, 0);
+    display.print(title.substring(0, 21)); 
+
+    display.setCursor(0, 10);
+    display.print("> ");
+    display.print(currentMessage.substring(0, 19));
+    display.drawFastHLine(0, 20, 128, SSD1306_WHITE); 
+
+    // Draw the character selection row
+    display.setCursor(0, 24); 
+    String charWindow = "";
+    int windowSize = 11; // Must be odd
+    int padding = (21 - windowSize) / 2;
+    for(int i = 0; i < padding; i++) charWindow += " ";
+    
+    for(int i = -(windowSize/2); i <= (windowSize/2); i++) {
+        int idx = (charIndex + i + currentSetLen) % currentSetLen;
+        charWindow += currentRow[idx];
+    }
+    display.print(charWindow);
+    display.drawRect((21/2)*6, 23, 7, 9, SSD1306_WHITE);
+
+    display.setCursor(100, 2); 
+    display.print(k_titles[charSetIndex]);
+
+    int textWidth = confirmText.length() * 6; 
+    display.setCursor((SCREEN_WIDTH - textWidth) / 2, 48); 
+    if (onEnter) display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
+    else display.setTextColor(SSD1306_WHITE);
+    display.print(confirmText);
+    
+    display.setCursor(0, 54); 
+    display.setTextColor(SSD1306_WHITE);
+    if (!onEnter) display.print("UP=Change Set");
+    
+    display.display();
+    delay(50);
+  }
+}
+
+// --- MULTILINE DRAW HELPER (FOR BYTES APP) ---
+void drawMultiline_Bytes(String text, int x, int y, int maxCharsPerLine) {
+    String currentLine = "";
+    String remainingText = text;
+    int lastSpace = -1;
+
+    display.setCursor(x, y);
+
+    while (remainingText.length() > 0) {
+        currentLine = "";
+        int cutIndex = maxCharsPerLine;
+        if (remainingText.length() <= maxCharsPerLine) {
+            currentLine = remainingText;
+            remainingText = "";
+        } else {
+            cutIndex = remainingText.lastIndexOf(' ', maxCharsPerLine);
+            if (cutIndex == -1) {
+                cutIndex = maxCharsPerLine;
+            }
+            currentLine = remainingText.substring(0, cutIndex);
+            remainingText = remainingText.substring(cutIndex + (cutIndex != maxCharsPerLine ? 1 : 0));
+        }
+        display.println(currentLine);
+    }
+}
+
+// --- BINARY CONVERTER HELPER ---
+String textToBinary(String text) {
+  String result = "";
+  for (int i = 0; i < text.length(); i++) {
+    char c = text.charAt(i);
+    String binaryChar = "";
+    for (int b = 7; b >= 0; b--) {
+      binaryChar += ((c >> b) & 1) ? '1' : '0';
+    }
+    
+    result += binaryChar;
+    
+    if (i < text.length() - 1) {
+      result += " ";
+    }
+  }
+  return result;
+}
+
+
+// --- MAIN BYTES CONVERTER APP ---
+void runBytesConverter() {
+  String inputText = "";
+  String binaryOutput = "";
+
+  while (true) {
+    if (backPressed()) {
+      waitRelease(BACK_BTN);
+      break; // Exit the app
+    }
+
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setTextColor(SSD1306_WHITE);
+
+    if (inputText == "") {
+      // --- Input Mode ---
+      display.setCursor(0, 0);
+      display.println("Bytes Converter App");
+      display.drawFastHLine(0, 10, 128, SSD1306_WHITE);
+      display.setCursor(10, 28);
+      display.println("Press JOY to enter");
+      display.setCursor(10, 38);
+      display.println("text to convert.");
+
+      if (joyPressed()) {
+        waitRelease(JOY_BTN);
+        inputText = runVirtualKeyboard_Bytes("Enter Text:", "[ SEND ]");
+        
+        if (inputText.length() > 0) {
+          binaryOutput = textToBinary(inputText);
+        }
+      }
+
+    } else {
+      // --- Display Mode ---
+      display.setCursor(0, 0);
+      display.print("Text: ");
+      display.println(inputText.substring(0, 16));
+      display.drawFastHLine(0, 10, 128, SSD1306_WHITE);
+
+      // 17 chars = 2 bytes per line (01001000 01001001)
+      drawMultiline_Bytes(binaryOutput, 0, 14, 17); 
+
+      // Hint at the bottom
+      display.setCursor(0, 54);
+      display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
+      display.print(" Press JOY for new text ");
+      
+      if (joyPressed()) {
+        waitRelease(JOY_BTN);
+        inputText = "";
+        binaryOutput = "";
+      }
+    }
+
+    display.display();
+    delay(50);
+  }
+  // Loop exited (BACK was pressed)
+}
+    
+    // ==================== JAMMER APP ====================
+// Note: This app disables and re-enables core WiFi/BT services.
+// Use with caution.
+
+
+            // ==================== JAMMER APP (Corrected for performance) ====================
+// Note: This app disables and re-enables core WiFi services.
+// Use with caution. Its effectiveness is highly dependent on a stable power supply for the NRF24L01.
+
+// Helper functions for the Jammer/*
+ 
+// ==================== SETUP & MAIN LOOP ====================// ==================== BLE JAMMER APP (Bluetooth Only) ====================
+// This app is designed to disrupt Bluetooth Low Energy (BLE) device discovery
+// by targeting the three specific advertising channels.
+// NOTE: This does NOT jam Wi-Fi.
+
+void runJammer() {
+    // --- App State ---
+    bool jammerActive = false;
+    // Array of the three BLE advertising channels used for device discovery
+    // These correspond to frequencies 2402MHz, 2426MHz, and 2480MHz.
+    const int bleChannels[] = {2, 26, 80};
+    int currentChannelIndex = 0;
+
+    // --- Initial Warning Display ---
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setTextColor(SSD1306_WHITE);
+    display.setCursor(0, 0);
+    display.println(" Jammer");
+    display.setCursor(0, 16);
+    display.println("WARNING:");
+    display.println("Disrupts devices.");
+    display.setCursor(0, 50);
+    display.println("Press Joy to start");
+    display.display();
+
+    // Wait for the user to confirm they want to start
+    while (true) {
+        if (joyPressed()) {
+            waitRelease(JOY_BTN);
+            break;
+        }
+        if (backPressed()) {
+            waitRelease(BACK_BTN);
+            return; // Exit if back is pressed on the warning screen
+        }
+        delay(10);
+    }
+
+    // --- INITIALIZE JAMMER HARDWARE ---
+    display.clearDisplay();
+    display.setCursor(0, 20);
+    display.println("Preparing Hardware...");
+    display.display();
+    delay(500);
+    
+    // Turn off the ESP32's onboard radio (both WiFi & Bluetooth) to prevent
+    // hardware conflicts with the external nRF24L01 module.
+    WiFi.mode(WIFI_OFF);
+    
+    // Initialize the nRF24L01 radio module
+    sp = new SPIClass(VSPI);
+    sp->begin(); // VSPI default pins on most ESP32 boards
+    
+    if (radio1.begin(sp)) {
+        radio1.setAutoAck(false);
+        radio1.stopListening();
+        radio1.setRetries(0, 0);
+        radio1.setPALevel(RF24_PA_MAX, true); // Set to maximum power for best range
+        radio1.setDataRate(RF24_2MBPS);
+        radio1.setCRCLength(RF24_CRC_DISABLED);
+        // Begin transmitting a constant carrier wave on the first BLE channel
+        radio1.startConstCarrier(RF24_PA_MAX, bleChannels[0]);
+        jammerActive = true;
+    } else {
+        // Handle the case where the nRF24L01 module is not found
+        display.clearDisplay();
+        display.setCursor(0, 20);
+        display.println("NRF24 Not Found!");
+        display.setCursor(0, 40);
+        display.println("Check wiring.");
+        display.display();
+        delay(3000);
+        
+        // Try to restore WiFi to Station mode before exiting
+        WiFi.mode(WIFI_STA);
+        delete sp;
+        sp = nullptr;
+        return;
+    }
+
+    // --- JAMMER MAIN LOOP ---
+    unsigned long lastDisplayUpdate = 0;
+    while (!backPressed()) {
+        if (jammerActive) {
+            // Rapidly cycle through the three BLE advertising channels
+            currentChannelIndex = (currentChannelIndex + 1) % 3;
+            radio1.setChannel(bleChannels[currentChannelIndex]);
+            // A tiny delay can help stabilize the signal on each hop
+            delayMicroseconds(500); 
+        }
+        
+        // Update the display periodically to avoid slowing down the jamming process
+        if (millis() - lastDisplayUpdate > 200) {
+            lastDisplayUpdate = millis();
+            display.clearDisplay();
+            display.setTextSize(2);
+            display.setCursor(0, 0);
+            display.setTextColor(SSD1306_WHITE);
+            display.println("JAMMING BLE");
+            display.setTextSize(1);
+            display.drawFastHLine(0, 18, 128, SSD1306_WHITE);
+            display.setCursor(0, 24);
+            display.print("Status: ");
+            display.println(jammerActive ? "ACTIVE" : "FAILED");
+            display.setCursor(0, 36);
+            display.print("Target Channel: ");
+            display.print(bleChannels[currentChannelIndex]);
+            display.setCursor(0, 52);
+            display.println("Press BACK to stop");
+            display.display();
+        }
+    }
+
+    // --- CLEANUP ON EXIT ---
+    radio1.stopConstCarrier();
+    delete sp;
+    sp = nullptr;
+
+    display.clearDisplay();
+    display.setCursor(0, 20);
+    display.println("Restoring Radio...");
+    display.display();
+    
+    // Re-enable the ESP32's onboard radio for other apps to use
+    WiFi.mode(WIFI_STA);
+    
+    delay(1000);
+    waitRelease(BACK_BTN);
+}
+ 
+ 
